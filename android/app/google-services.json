@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "240632493418",
+    "project_id": "discover-app-955b7",
+    "storage_bucket": "discover-app-955b7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:240632493418:android:4cec32313bbe304fcfe113",
+        "android_client_info": {
+          "package_name": "com.baptiste.discover"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "240632493418-afu40a0d2t2rr0oblvncgo8vtvrt5pug.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1Zklp6jAgJ-waCSgHeMwIoJQRRT7k1Ec"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "240632493418-afu40a0d2t2rr0oblvncgo8vtvrt5pug.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "240632493418-mamml7k6k40ktambhsa900fvlr9r1kba.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.discover.discover"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

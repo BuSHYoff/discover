@@ -1,0 +1,109 @@
+import 'package:discover/core/theme/app_theme.dart';
+import 'package:discover/features/onboarding/onboarding.dart';
+import 'package:discover/features/profile/screens/profile_screen.dart';
+import 'package:discover/main_shell.dart';
+import 'package:discover/core/models/passion.dart';
+import 'package:discover/core/services/user_service.dart';
+import 'package:discover/core/services/notification_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:discover/core/services/firebase_options.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await NotificationService.initialize();
+
+  // Initialise Google Sign In (requis par google_sign_in ^7.x)
+  await GoogleSignIn.instance.initialize();
+
+  // Charge le catalogue de passions depuis Firestore
+  await PassionRepository.instance.load();
+
+  // Vérifie si l'onboarding a déjà été complété
+  final onboardingDone = await OnboardingData.isDone();
+
+  // Charge les données si elles existent
+  if (onboardingDone) {
+    await OnboardingData.instance.load();
+    // Restaure le prénom dans ProfileData dès le démarrage
+    final name = OnboardingData.instance.firstName;
+    if (name.isNotEmpty) ProfileData.instance.setName(name);
+  }
+
+  // Restaure les données depuis Firestore si l'user est connecté
+  if (FirebaseAuth.instance.currentUser != null) {
+    // Lance les deux chargements en parallèle
+    final results = await Future.wait([
+      UserService.loadAndRestorePassions(),
+      UserService.loadUserProfile(),
+    ]);
+
+    // Applique username + couleur depuis Firestore (priorité sur données locales)
+    final profile = results[1] as ({String? username, String? profileColor});
+    if (profile.username?.isNotEmpty == true) {
+      ProfileData.instance.setName(profile.username!);
+    }
+    if (profile.profileColor?.isNotEmpty == true) {
+      ProfileData.instance.setProfileColor(profile.profileColor!);
+    }
+  }
+
+  // Installe l'écouteur de rotation de token — sans popup permission
+  NotificationService.setupTokenRefreshListener();
+
+  runApp(DiscoverApp(showOnboarding: !onboardingDone));
+}
+
+class DiscoverApp extends StatefulWidget {
+  final bool showOnboarding;
+
+  const DiscoverApp({super.key, required this.showOnboarding});
+
+  @override
+  State<DiscoverApp> createState() => _DiscoverAppState();
+}
+
+class _DiscoverAppState extends State<DiscoverApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild MaterialApp quand la couleur de profil change
+    ProfileData.instance.addListener(_onThemeChange);
+  }
+
+  @override
+  void dispose() {
+    ProfileData.instance.removeListener(_onThemeChange);
+    super.dispose();
+  }
+
+  void _onThemeChange() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Discover.',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.fromHex(ProfileData.instance.profileColorHex),
+      home: widget.showOnboarding ? const OnboardingScreen() : const MainShell(),
+    );
+  }
+}
