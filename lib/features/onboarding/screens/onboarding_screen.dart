@@ -199,7 +199,38 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   /// Appelé par PageAuth quand Firebase auth réussit.
-  void _onAuthSuccess() => _nextPage();
+  /// Si l'utilisateur a déjà un compte Firestore → saute la page du pseudo
+  /// et va directement dans MainShell.
+  Future<void> _onAuthSuccess() async {
+    final profile = await UserService.loadUserProfile();
+    final hasAccount = profile.username?.isNotEmpty == true;
+
+    if (!mounted) return;
+
+    if (hasAccount) {
+      // Compte existant : charge tout depuis Firestore et va dans l'app
+      ProfileData.instance.reset();
+      ProfileData.instance.setName(profile.username!);
+      if (profile.profileColor?.isNotEmpty == true) {
+        ProfileData.instance.setProfileColor(profile.profileColor!);
+      }
+      await UserService.loadAndRestorePassions();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const MainShell(),
+          transitionsBuilder: (_, animation, __, child) => FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          ),
+          transitionDuration: const Duration(milliseconds: 600),
+        ),
+      );
+    } else {
+      // Nouveau compte → page du pseudo
+      _nextPage();
+    }
+  }
 
   Future<void> _finish() async {
     HapticFeedback.mediumImpact();
