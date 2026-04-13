@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:discover/core/services/user_service.dart';
 import 'package:discover/core/services/notification_service.dart';
+import 'package:discover/core/services/community_service.dart';
 import 'package:discover/features/auth/widgets/page_auth.dart';
 import 'package:discover/features/onboarding/screens/onboarding_screen.dart';
 import 'package:discover/features/profile/screens/profile_screen.dart';
@@ -30,6 +31,8 @@ class AuthScreen extends StatelessWidget {
             // ── 1. Reset complet de l'état local ─────────────────────────────
             // Évite que la couleur/pseudo du compte précédent restent affichés.
             ProfileData.instance.reset();
+            // Vide le cache auteurs pour forcer un re-fetch avec le nouveau compte
+            CommunityService.clearUserCache();
 
             // ── 2. Lecture Firestore (1 seul read) ───────────────────────────
             final profile = await UserService.loadUserProfile();

@@ -28,11 +28,18 @@ class CommunityService {
 
   static Future<Map<String, dynamic>> _getUser(String uid) async {
     if (uid.isEmpty) return {};
-    if (_userCache.containsKey(uid)) return _userCache[uid]!;
+    // Ne sert le cache que si le username est déjà résolu
+    final cached = _userCache[uid];
+    if (cached != null && (cached['username'] as String?)?.isNotEmpty == true) {
+      return cached;
+    }
     try {
       final snap = await _db.collection('users').doc(uid).get();
       final data = snap.data() ?? {};
-      _userCache[uid] = data;
+      // Ne met en cache que si le username est présent (sinon on re-fetche la prochaine fois)
+      if ((data['username'] as String?)?.isNotEmpty == true) {
+        _userCache[uid] = data;
+      }
       return data;
     } catch (_) {
       return {};
