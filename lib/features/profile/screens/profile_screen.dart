@@ -246,12 +246,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Navigator.of(context).pushAndRemoveUntil(
                     PageRouteBuilder(
                       pageBuilder: (_, __, ___) => const AuthScreen(),
-                      transitionsBuilder: (_, anim, __, child) => FadeTransition(
-                        opacity: CurvedAnimation(
-                            parent: anim, curve: Curves.easeOut),
-                        child: child,
-                      ),
-                      transitionDuration: const Duration(milliseconds: 500),
+                      transitionsBuilder: (_, __, ___, child) => child,
+                      transitionDuration: Duration.zero,
                     ),
                     (_) => false,
                   );
