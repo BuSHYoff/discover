@@ -437,11 +437,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               child: Center(
                                 child: Text(
-                                  _profile.name.isNotEmpty
-                                      ? _profile.name[0].toUpperCase()
-                                      : '?',
+                                  _profile.name.length >= 2
+                                      ? _profile.name.substring(0, 2).toUpperCase()
+                                      : _profile.name.isNotEmpty
+                                          ? _profile.name[0].toUpperCase()
+                                          : '?',
                                   style: GoogleFonts.firaSansCondensed(
-                                    fontSize: 30,
+                                    fontSize: 26,
                                     fontWeight: FontWeight.w800,
                                     color: Colors.white,
                                   ),
