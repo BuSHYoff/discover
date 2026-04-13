@@ -199,20 +199,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               // ── Caption ───────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.06)),
-                  ),
-                  child: Text(
-                    _post.caption,
-                    style: GoogleFonts.firaSansCondensed(
-                        fontSize: 14, color: AppColors.ink, height: 1.5),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Description',
+                        style: GoogleFonts.firaSansCondensed(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inkSoft,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Colors.black.withValues(alpha: 0.06)),
+                      ),
+                      child: Text(
+                        _post.caption,
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 14, color: AppColors.ink, height: 1.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ]),
