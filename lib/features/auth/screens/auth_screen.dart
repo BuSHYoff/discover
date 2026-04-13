@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:discover/core/services/user_service.dart';
 import 'package:discover/core/services/notification_service.dart';
+import 'package:discover/core/services/community_service.dart';
 import 'package:discover/features/auth/widgets/page_auth.dart';
 import 'package:discover/features/onboarding/screens/onboarding_screen.dart';
 import 'package:discover/features/profile/screens/profile_screen.dart';
@@ -10,8 +11,8 @@ import 'package:discover/core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH SCREEN — écran standalone utilisé après déconnexion.
-// Si l'utilisateur a déjà complété l'onboarding (displayName non vide),
-// on l'envoie directement sur MainShell. Sinon, on relance l'onboarding.
+// La vérification se fait via Firestore (champ `username` dans users/{uid}).
+// Pas de dépendance à displayName Firebase qui peut être absent ou périmé.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AuthScreen extends StatelessWidget {
@@ -25,13 +26,29 @@ class AuthScreen extends StatelessWidget {
         child: PageAuth(
           onAuthSuccess: () async {
             final user = FirebaseAuth.instance.currentUser;
-            final hasCompletedOnboarding =
-                user?.displayName != null && user!.displayName!.isNotEmpty;
+            if (user == null) return;
 
-            if (hasCompletedOnboarding) {
-              // Utilisateur connu → restaure nom + progress des passions
-              ProfileData.instance.setName(user.displayName!);
+            // ── 1. Reset complet de l'état local ─────────────────────────────
+            // Évite que la couleur/pseudo du compte précédent restent affichés.
+            ProfileData.instance.reset();
+            // Vide le cache auteurs pour forcer un re-fetch avec le nouveau compte
+            CommunityService.clearUserCache();
+
+            // ── 2. Lecture Firestore (1 seul read) ───────────────────────────
+            final profile = await UserService.loadUserProfile();
+            final hasAccount = profile.username?.isNotEmpty == true;
+
+            if (hasAccount) {
+              // Compte existant → applique username + couleur depuis Firestore
+              ProfileData.instance.setName(profile.username!);
+              if (profile.profileColor?.isNotEmpty == true) {
+                ProfileData.instance.setProfileColor(profile.profileColor!);
+              }
+
+              // Restaure les passions en cours / terminées depuis Firestore
               await UserService.loadAndRestorePassions();
+
+              // Enregistre le token FCM pour les notifications
               await NotificationService.initFcmToken();
             }
 
@@ -39,7 +56,7 @@ class AuthScreen extends StatelessWidget {
             Navigator.of(context).pushAndRemoveUntil(
               PageRouteBuilder(
                 pageBuilder: (_, __, ___) =>
-                    hasCompletedOnboarding ? const MainShell() : const OnboardingScreen(),
+                    hasAccount ? const MainShell() : const OnboardingScreen(),
                 transitionsBuilder: (_, anim, __, child) => FadeTransition(
                   opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
                   child: child,

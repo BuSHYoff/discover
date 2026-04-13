@@ -112,11 +112,11 @@ class _PageAuthState extends State<PageAuth> {
           // ── Titre ─────────────────────────────────────────────────────────────
           Text.rich(
             TextSpan(
-              style: GoogleFonts.firaSansCondensed(
-                fontSize: 42,
-                fontWeight: FontWeight.w900,
+              style: GoogleFonts.anton(
+                fontSize: 34,
+                fontWeight: FontWeight.w400,
                 color: AppColors.ink,
-                height: 1.05,
+                height: 1.2,
               ),
               children: [
                 const TextSpan(text: 'Rejoins\nl\'aventure'),
@@ -124,13 +124,13 @@ class _PageAuthState extends State<PageAuth> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             'Crée ton compte pour sauvegarder\nton parcours et tes découvertes.',
-            style: GoogleFonts.firaSansCondensed(
-              fontSize: 15,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
               color: AppColors.inkSoft,
-              height: 1.5,
+              fontWeight: FontWeight.w300,
             ),
           ),
           const SizedBox(height: 32),

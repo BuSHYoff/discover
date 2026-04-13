@@ -27,16 +27,29 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
 
   late CommunityPost _post;
+  // Compteur local pour les mises à jour optimistes — initialisé depuis Firestore
+  late int  _displayLikeCount;
+  late bool _isLiked;
 
   @override
   void initState() {
     super.initState();
-    _post = widget.post;
+    _post             = widget.post;
+    _displayLikeCount = widget.post.likeCount;   // valeur réelle Firestore
+    _isLiked          = widget.post.isLiked;
   }
 
   void _handleLike() {
     widget.onLike();
-    setState(() => _post.isLiked = !_post.isLiked);
+    setState(() {
+      if (_isLiked) {
+        _isLiked = false;
+        _displayLikeCount--;
+      } else {
+        _isLiked = true;
+        _displayLikeCount++;
+      }
+    });
   }
 
   @override
@@ -119,12 +132,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: _post.isLiked
-                            ? AppColors.errorLight
-                            : Colors.white,
+                        color: _isLiked ? AppColors.errorLight : Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: _post.isLiked
+                          color: _isLiked
                               ? AppColors.errorPale
                               : Colors.black.withValues(alpha: 0.07),
                         ),
@@ -133,25 +144,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
                           child: Icon(
-                            _post.isLiked
+                            _isLiked
                                 ? Icons.favorite_rounded
                                 : Icons.favorite_border_rounded,
-                            key: ValueKey(_post.isLiked),
+                            key: ValueKey(_isLiked),
                             size: 18,
-                            color: _post.isLiked
-                                ? AppColors.error
-                                : AppColors.inkSoft,
+                            color: _isLiked ? AppColors.error : AppColors.inkSoft,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${_post.likeCount + (_post.isLiked ? 1 : 0)} j\'aime',
+                          '$_displayLikeCount j\'aime',
                           style: GoogleFonts.firaSansCondensed(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: _post.isLiked
-                                  ? AppColors.error
-                                  : AppColors.inkSoft),
+                              color: _isLiked ? AppColors.error : AppColors.inkSoft),
                         ),
                       ]),
                     ),
@@ -192,20 +199,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               // ── Caption ───────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.06)),
-                  ),
-                  child: Text(
-                    _post.caption,
-                    style: GoogleFonts.firaSansCondensed(
-                        fontSize: 14, color: AppColors.ink, height: 1.5),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Description',
+                        style: GoogleFonts.firaSansCondensed(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inkSoft,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Colors.black.withValues(alpha: 0.06)),
+                      ),
+                      child: Text(
+                        _post.caption,
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 14, color: AppColors.ink, height: 1.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ]),
