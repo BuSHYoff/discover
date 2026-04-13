@@ -49,7 +49,7 @@ class RelationCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(choice.icon, size: 26, color: isSelected ? primary : AppColors.inkSoft),
+            Text(choice.emoji, style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

@@ -51,7 +51,7 @@ class UniverseTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(choice.icon, size: 26, color: isSelected ? choice.textColor : AppColors.inkSoft),
+              Text(choice.emoji, style: const TextStyle(fontSize: 26)),
               const SizedBox(height: 6),
               Text(
                 choice.label,

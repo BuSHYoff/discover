@@ -42,7 +42,7 @@ class CompactChoice extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(choice.icon, size: 22, color: isSelected ? primary : AppColors.inkSoft),
+            Text(choice.emoji, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 14),
             Expanded(
               child: Text(

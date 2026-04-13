@@ -115,33 +115,33 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // ── Données des choix ────────────────────────────────────────────────────
 
   static const _relations = [
-    OnboardingChoice('Je ne suis pas curieux', Icons.spa_outlined,
+    OnboardingChoice('Je ne suis pas curieux', '😶',
         'Tout est à découvrir — c\'est excitant.'),
-    OnboardingChoice('J\'en ai eu mais je n\'approfondis pas', Icons.local_fire_department_outlined,
+    OnboardingChoice('J\'en ai eu mais je n\'approfondis pas', '🔥',
         'On va retrouver cette étincelle.'),
-    OnboardingChoice('J\'en ai déjà, je veux élargir', Icons.explore_outlined,
+    OnboardingChoice('J\'en ai déjà, je veux élargir', '🌍',
         'Parfait pour explorer de nouveaux horizons.'),
   ];
 
   static const _universeChoices = [
-    OnboardingUniverseChoice('Art & Créativité', Icons.palette_outlined, Color(0xFFF5E6D3), Color(0xFF8B5E3C)),
-    OnboardingUniverseChoice('Corps & Mouvement', Icons.accessibility_new_rounded, Color(0xFFE8F0EB), AppColors.green),
-    OnboardingUniverseChoice('Nature & Exploration', Icons.eco_outlined, Color(0xFFECF5E8), Color(0xFF3A6B2C)),
-    OnboardingUniverseChoice('Gastronomie', Icons.restaurant_outlined, Color(0xFFF5EBE0), Color(0xFF8B4513)),
-    OnboardingUniverseChoice('Musique & Son', Icons.music_note_rounded, Color(0xFFEBE8F5), Color(0xFF4B3A8B)),
-    OnboardingUniverseChoice('Sciences & Tech', Icons.science_outlined, Color(0xFFF0EBF5), Color(0xFF5C3A8B)),
+    OnboardingUniverseChoice('Art & Créativité',    '🎨', Color(0xFFF5E6D3), Color(0xFF8B5E3C)),
+    OnboardingUniverseChoice('Corps & Mouvement',   '💪', Color(0xFFE8F0EB), AppColors.green),
+    OnboardingUniverseChoice('Nature & Exploration','🌿', Color(0xFFECF5E8), Color(0xFF3A6B2C)),
+    OnboardingUniverseChoice('Gastronomie',         '🍳', Color(0xFFF5EBE0), Color(0xFF8B4513)),
+    OnboardingUniverseChoice('Musique & Son',       '🎵', Color(0xFFEBE8F5), Color(0xFF4B3A8B)),
+    OnboardingUniverseChoice('Sciences & Tech',     '🔬', Color(0xFFF0EBF5), Color(0xFF5C3A8B)),
   ];
 
   static const _timeChoices = [
-    OnboardingChoice('Moins de 2h', Icons.timer_outlined, 'Des sessions courtes et régulières.'),
-    OnboardingChoice('Entre 2h et 5h', Icons.hourglass_empty_rounded, 'Un bon équilibre pour progresser.'),
-    OnboardingChoice('Plus de 5h', Icons.trending_up_rounded, 'Tu vas aller loin !'),
+    OnboardingChoice('Moins de 2h',    '⏱️', 'Des sessions courtes et régulières.'),
+    OnboardingChoice('Entre 2h et 5h', '⌛',  'Un bon équilibre pour progresser.'),
+    OnboardingChoice('Plus de 5h',     '📈', 'Tu vas aller loin !'),
   ];
 
   static const _budgetChoices = [
-    OnboardingChoice('Gratuit ou presque', Icons.savings_outlined, 'On trouve des pépites sans dépenser.'),
-    OnboardingChoice('Jusqu\'à 50€', Icons.payments_outlined, 'De quoi bien démarrer.'),
-    OnboardingChoice('Pas de limite', Icons.workspace_premium_outlined, 'Le meilleur matériel dès le début.'),
+    OnboardingChoice('Gratuit ou presque', '🪙', 'On trouve des pépites sans dépenser.'),
+    OnboardingChoice('Jusqu\'à 50€',       '💳', 'De quoi bien démarrer.'),
+    OnboardingChoice('Pas de limite',      '💎', 'Le meilleur matériel dès le début.'),
   ];
 
   @override
