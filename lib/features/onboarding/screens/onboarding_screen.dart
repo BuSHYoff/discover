@@ -115,11 +115,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // ── Données des choix ────────────────────────────────────────────────────
 
   static const _relations = [
-    OnboardingChoice('Je ne suis pas curieux', '😶',
+    OnboardingChoice('Je ne sais pas par où commencer', '🌱',
         'Tout est à découvrir — c\'est excitant.'),
-    OnboardingChoice('J\'en ai eu mais je n\'approfondis pas', '🔥',
+    OnboardingChoice('J\'en ai eu mais je n\'approfondis pas', '🍃',
         'On va retrouver cette étincelle.'),
-    OnboardingChoice('J\'en ai déjà, je veux élargir', '🌍',
+    OnboardingChoice('J\'en ai déjà plein, je veux élargir', '🌍',
         'Parfait pour explorer de nouveaux horizons.'),
   ];
 
