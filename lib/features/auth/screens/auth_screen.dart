@@ -48,6 +48,9 @@ class AuthScreen extends StatelessWidget {
               // Restaure les passions en cours / terminées depuis Firestore
               await UserService.loadAndRestorePassions();
 
+              // Marque l'onboarding comme terminé en local pour les prochains lancements
+              await OnboardingData.markDone();
+
               // Enregistre le token FCM pour les notifications
               await NotificationService.initFcmToken();
             }

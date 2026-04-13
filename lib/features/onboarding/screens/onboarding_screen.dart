@@ -43,6 +43,13 @@ class OnboardingData extends ChangeNotifier {
     return prefs.getBool(_keyDone) ?? false;
   }
 
+  /// Marque l'onboarding comme terminé sans sauvegarder les autres champs.
+  /// Utilisé quand un compte existant est détecté (on saute l'onboarding).
+  static Future<void> markDone() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyDone, true);
+  }
+
   /// Charge les données sauvegardées
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -215,6 +222,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ProfileData.instance.setProfileColor(profile.profileColor!);
       }
       await UserService.loadAndRestorePassions();
+      // Marque l'onboarding comme terminé pour les prochains lancements
+      await OnboardingData.markDone();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
