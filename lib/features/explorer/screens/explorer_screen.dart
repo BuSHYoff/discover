@@ -31,6 +31,7 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   WeeklyPassionData? _weekly;
   bool _loading = false;
 
+  final ScrollController _scrollCtrl = ScrollController();
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -38,6 +39,29 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didUpdateWidget(ExplorerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Retour sur l'onglet → scroll en haut
+    if (widget.animKey != oldWidget.animKey) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollCtrl.hasClients) {
+          _scrollCtrl.animateTo(
+            0,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -94,6 +118,7 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
         color:       Theme.of(context).colorScheme.primary,
         strokeWidth: 2.5,
         child: CustomScrollView(
+          controller: _scrollCtrl,
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
