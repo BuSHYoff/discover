@@ -164,6 +164,35 @@ class UserService {
         });
   }
 
+  /// Supprime tout : posts communauté, document utilisateur, compte Firebase.
+  static Future<void> deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final uid = user.uid;
+
+    // 1. Supprime tous les posts de l'utilisateur
+    try {
+      final postsSnap = await _db
+          .collection('community')
+          .where('authorId', isEqualTo: uid)
+          .get();
+      final batch = _db.batch();
+      for (final doc in postsSnap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } catch (_) {}
+
+    // 2. Supprime le document utilisateur
+    try {
+      await _userDoc(uid).delete();
+    } catch (_) {}
+
+    // 3. Supprime le compte Firebase Auth
+    await user.delete();
+  }
+
   /// Charge les passions depuis Firestore et restaure chaque JourneyProgress
   /// en local (SharedPreferences). Appelé à la reconnexion.
   static Future<void> loadAndRestorePassions() async {

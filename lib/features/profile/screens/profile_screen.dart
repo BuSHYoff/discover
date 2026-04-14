@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:discover/features/auth/screens/auth_screen.dart';
+import 'package:discover/features/onboarding/screens/onboarding_screen.dart';
 import 'package:discover/features/home/widgets/staggered_bounce.dart';
 import 'package:discover/core/models/passion.dart';
 import 'package:discover/core/services/auth_service.dart';
@@ -12,7 +13,6 @@ import 'package:discover/features/journey/widgets/journey_progress.dart';
 import 'package:discover/features/profile/widgets/stat_pill.dart';
 import 'package:discover/features/profile/widgets/passion_row.dart';
 import 'package:discover/features/profile/widgets/edit_name_sheet.dart';
-import 'package:discover/features/profile/screens/propose_passion_screen.dart';
 import 'package:discover/core/services/community_service.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
 import 'package:discover/features/home/widgets/post_detail_screen.dart';
@@ -111,7 +111,8 @@ Color _hexToColor(String hex) {
 // ─── PROFILE SCREEN ───────────────────────────────────────────────────────────
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool isGuest;
+  const ProfileScreen({super.key, this.isGuest = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -236,6 +237,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Future.microtask(() => _showDeleteModal());
+                },
+                child: Text('Supprimer mon compte',
+                    style: GoogleFonts.firaSansCondensed(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: Color(0xFFD63B3B), width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
                 onPressed: () async {
                   Navigator.of(ctx).pop();
                   await AuthService.fullSignOut();
@@ -257,7 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
-            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0x14000000)),
             SizedBox(
               width: double.infinity,
               child: TextButton(
@@ -306,8 +327,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
       .where((p) => JourneyProgress.of(p.id).globalPercent >= 1.0)
       .length;
 
+  void _showDeleteModal() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cream,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Supprimer le compte ?',
+            style: GoogleFonts.firaSansCondensed(
+                fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.ink)),
+        content: Text(
+            'Cette action est irréversible. Toutes tes données et publications seront supprimées.',
+            style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.inkSoft)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Annuler',
+                style: GoogleFonts.firaSansCondensed(
+                    fontSize: 15, color: AppColors.inkSoft)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteAccount();
+            },
+            child: Text('Supprimer',
+                style: GoogleFonts.firaSansCondensed(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    // Tente la suppression Firestore + Auth — on continue même en cas d'erreur
+    try {
+      await UserService.deleteAccount();
+    } catch (_) {}
+
+    // Nettoyage local garanti, quelle que soit l'issue
+    try { await AuthService.fullSignOut(); } catch (_) {}
+    await OnboardingData.instance.reset();
+    CommunityService.clearUserCache();
+    JourneyProgress.resetAll();
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const OnboardingScreen(),
+        transitionsBuilder: (_, __, ___, child) => child,
+        transitionDuration: Duration.zero,
+      ),
+      (_) => false,
+    );
+  }
+
+  Widget _buildGuestScreen(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text.rich(
+                TextSpan(
+                  style: GoogleFonts.firaSansCondensed(
+                    fontSize: 42, fontWeight: FontWeight.w900,
+                    color: AppColors.ink, height: 1.05,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Rejoins\nDiscover'),
+                    TextSpan(text: '.', style: TextStyle(color: primary)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Crée un compte pour sauvegarder tes passions, suivre ta progression et rejoindre la communauté.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14, color: AppColors.inkSoft, fontWeight: FontWeight.w300,
+                ),
+              ),
+              const SizedBox(height: 32),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                  );
+                },
+                child: Container(
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: primary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Créer un compte',
+                    style: GoogleFonts.firaSansCondensed(
+                      fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.isGuest) return _buildGuestScreen(context);
+
     final topPadding    = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final passions      = _filteredPassions();
@@ -351,25 +491,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const Spacer(),
-                          // Proposer une passion (vert)
-                          GestureDetector(
-                            onTap: () {
-                              HapticFeedback.lightImpact();
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => const ProposePassionScreen(),
-                              ));
-                            },
-                            child: Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                color: primaryLight,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.note_add,
-                                  color: primary, size: 20),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           // Se déconnecter (rouge)
                           GestureDetector(
                             onTap: _showLogoutModal,

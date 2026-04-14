@@ -8,7 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final bool isGuest;
+  const MainShell({super.key, this.isGuest = false});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -123,7 +124,7 @@ class _MainShellState extends State<MainShell>
                   1 => ExplorerScreen(animKey: _explorerAnimKey),
                   _ => KeyedSubtree(
                       key: ValueKey(_tabKeys[i]),
-                      child: i == 2 ? const MapScreen() : const ProfileScreen(),
+                      child: i == 2 ? const MapScreen() : ProfileScreen(isGuest: widget.isGuest),
                     ),
                 },
               ),

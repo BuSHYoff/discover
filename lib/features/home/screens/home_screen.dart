@@ -2,10 +2,12 @@ import 'dart:math' as math;
 import 'package:discover/features/home/widgets/staggered_bounce.dart';
 import 'package:discover/features/home/widgets/passion_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:discover/core/models/passion.dart';
 import 'package:discover/features/home/screens/detail_screen.dart';
 import 'package:discover/features/profile/screens/profile_screen.dart';
+import 'package:discover/features/profile/screens/propose_passion_screen.dart';
 import 'package:discover/core/theme/app_theme.dart';
 import 'package:discover/core/services/notification_service.dart';
 
@@ -148,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final primaryLight = Color.lerp(primary, Colors.white, 0.82)!;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -160,15 +163,15 @@ class _HomeScreenState extends State<HomeScreen>
               key: ValueKey('home_header_${widget.animKey}'),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    StaggeredBounceEntry(
-                      index: 0,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
+                          StaggeredBounceEntry(
+                            index: 0,
                             child: Text.rich(
                               TextSpan(
                                 style: GoogleFonts.firaSansCondensed(
@@ -184,19 +187,51 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                           ),
+                          const SizedBox(height: 5),
+                          StaggeredBounceEntry(
+                            index: 1,
+                            child: Text(
+                              'Découvre les passions faites pour toi.',
+                              style: GoogleFonts.firaSansCondensed(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.inkSoft,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(width: 12),
                     StaggeredBounceEntry(
-                      index: 1,
-                      child: Text(
-                        'Trouve les passions qui te correspondent !',
-                        style: GoogleFonts.firaSansCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.inkSoft,
-                          letterSpacing: -0.1,
+                      index: 0,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const ProposePassionScreen(),
+                          ));
+                        },
+                        child: Container(
+                          width: 46, height: 46,
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: 0.8),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: primary.withValues(alpha: 0.50),
+                                blurRadius: 32,
+                                offset: const Offset(0, 12),
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.note_add, color: Colors.white, size: 22),
                         ),
                       ),
                     ),

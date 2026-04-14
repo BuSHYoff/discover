@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "240632493418-g2kgnahjuli4aoi4kbf0jqnoa8ebq3g8.apps.googleusercontent.com",
+          "client_id": "240632493418-v15ev55l5dkhfaittcldvil25m1slhav.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.baptiste.discover",
-            "certificate_hash": "85e9fbd8d0e3fc3e823d84427133e9f3dddd223e"
+            "certificate_hash": "b0cf564c36a3608934525e3377dfda7e5143e58f"
           }
         },
         {
