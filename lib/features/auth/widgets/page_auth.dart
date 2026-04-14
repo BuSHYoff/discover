@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,7 +14,8 @@ import 'package:discover/core/theme/app_theme.dart';
 
 class PageAuth extends StatefulWidget {
   final VoidCallback onAuthSuccess;
-  const PageAuth({super.key, required this.onAuthSuccess});
+  final VoidCallback? onContinueAsGuest;
+  const PageAuth({super.key, required this.onAuthSuccess, this.onContinueAsGuest});
 
   @override
   State<PageAuth> createState() => _PageAuthState();
@@ -22,6 +24,7 @@ class PageAuth extends StatefulWidget {
 class _PageAuthState extends State<PageAuth> {
   bool _isSignUp = false;
   bool _loadingGoogle = false;
+  bool _loadingApple  = false;
   bool _loadingEmail  = false;
   String? _error;
 
@@ -29,7 +32,7 @@ class _PageAuthState extends State<PageAuth> {
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
 
-  bool get _loading => _loadingGoogle || _loadingEmail;
+  bool get _loading => _loadingGoogle || _loadingApple || _loadingEmail;
 
   @override
   void initState() {
@@ -44,6 +47,20 @@ class _PageAuthState extends State<PageAuth> {
   }
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+
+  Future<void> _handleApple() async {
+    setState(() { _loadingApple = true; _error = null; });
+    try {
+      final cred = await AuthService.signInWithApple();
+      if (cred != null && mounted) widget.onAuthSuccess();
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() => _error = _friendlyError(e.code));
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingApple = false);
+    }
+  }
 
   Future<void> _handleGoogle() async {
     setState(() { _loadingGoogle = true; _error = null; });
@@ -132,6 +149,22 @@ class _PageAuthState extends State<PageAuth> {
             ),
           ),
           const SizedBox(height: 32),
+
+          // ── Apple (iOS seulement) ─────────────────────────────────────────────
+          if (Platform.isIOS) ...[
+            _SocialButton(
+              onTap: _loading ? null : _handleApple,
+              icon: _loadingApple
+                  ? SizedBox(
+                      width: 17, height: 17,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
+                    )
+                  : const Icon(Icons.apple, size: 22, color: AppColors.ink),
+              label: 'Continuer avec Apple',
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // ── Google ────────────────────────────────────────────────────────────
           _SocialButton(
@@ -250,6 +283,22 @@ class _PageAuthState extends State<PageAuth> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Continuer sans compte ─────────────────────────────────────────────
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: widget.onContinueAsGuest,
+            child: Center(
+              child: Text(
+                'Continuer sans compte →',
+                style: GoogleFonts.firaSansCondensed(
+                  fontSize: 14,
+                  color: AppColors.inkSoft,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ),

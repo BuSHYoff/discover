@@ -31,11 +31,14 @@ class OnboardingData extends ChangeNotifier {
   String firstName             = '';          // écran 4
 
   static const _keyDone      = 'onboarding_done';
+  static const _keyGuest     = 'is_guest';
   static const _keyRelation  = 'onboarding_relation';
   static const _keyUniverses   = 'onboarding_univers';
   static const _keyTime     = 'onboarding_temps';
   static const _keyBudget    = 'onboarding_budget';
   static const _keyFirstName    = 'onboarding_prenom';
+
+  bool isGuestUser = false;
 
   /// Vérifie si l'onboarding a déjà été complété
   static Future<bool> isDone() async {
@@ -43,11 +46,24 @@ class OnboardingData extends ChangeNotifier {
     return prefs.getBool(_keyDone) ?? false;
   }
 
+  /// Vérifie si l'utilisateur est en mode invité
+  static Future<bool> isGuest() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyGuest) ?? false;
+  }
+
   /// Marque l'onboarding comme terminé sans sauvegarder les autres champs.
   /// Utilisé quand un compte existant est détecté (on saute l'onboarding).
   static Future<void> markDone() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyDone, true);
+  }
+
+  /// Marque l'onboarding comme terminé en mode invité.
+  static Future<void> markDoneAsGuest() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyDone, true);
+    await prefs.setBool(_keyGuest, true);
   }
 
   /// Charge les données sauvegardées
@@ -58,6 +74,7 @@ class OnboardingData extends ChangeNotifier {
     timePerWeek = prefs.getString(_keyTime) ?? '';
     budget          = prefs.getString(_keyBudget) ?? '';
     firstName          = prefs.getString(_keyFirstName) ?? '';
+    isGuestUser     = prefs.getBool(_keyGuest) ?? false;
     notifyListeners();
   }
 
@@ -77,13 +94,14 @@ class OnboardingData extends ChangeNotifier {
   Future<void> reset() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyDone);
+    await prefs.remove(_keyGuest);
     await prefs.remove(_keyRelation);
     await prefs.remove(_keyUniverses);
     await prefs.remove(_keyTime);
     await prefs.remove(_keyBudget);
     await prefs.remove(_keyFirstName);
     hobbyRelation = ''; universes = []; timePerWeek = '';
-    budget = ''; firstName = '';
+    budget = ''; firstName = ''; isGuestUser = false;
     notifyListeners();
   }
 }
@@ -241,6 +259,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   }
 
+  Future<void> _continueAsGuest() async {
+    await OnboardingData.markDoneAsGuest();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const MainShell(isGuest: true),
+        transitionsBuilder: (_, animation, __, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 600),
+      ),
+    );
+  }
+
   Future<void> _finish() async {
     HapticFeedback.mediumImpact();
     final data = OnboardingData.instance;
@@ -360,6 +393,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                   PageAuth(
                     onAuthSuccess: _onAuthSuccess,
+                    onContinueAsGuest: _continueAsGuest,
                   ),
                   Page4(
                     controller: _firstNameCtrl,

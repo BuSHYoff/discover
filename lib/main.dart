@@ -32,13 +32,16 @@ void main() async {
   await NotificationService.initialize();
 
   // Initialise Google Sign In (requis par google_sign_in ^7.x)
-  await GoogleSignIn.instance.initialize();
+  await GoogleSignIn.instance.initialize(
+    serverClientId: '240632493418-afu40a0d2t2rr0oblvncgo8vtvrt5pug.apps.googleusercontent.com',
+  );
 
   // Charge le catalogue de passions depuis Firestore
   await PassionRepository.instance.load();
 
   // Vérifie si l'onboarding a déjà été complété
   final onboardingDone = await OnboardingData.isDone();
+  final isGuest = await OnboardingData.isGuest();
 
   // Charge les données si elles existent
   if (onboardingDone) {
@@ -48,8 +51,8 @@ void main() async {
     if (name.isNotEmpty) ProfileData.instance.setName(name);
   }
 
-  // Restaure les données depuis Firestore si l'user est connecté
-  if (FirebaseAuth.instance.currentUser != null) {
+  // Restaure les données depuis Firestore si l'user est connecté et non invité
+  if (!isGuest && FirebaseAuth.instance.currentUser != null) {
     // Lance les deux chargements en parallèle
     final results = await Future.wait([
       UserService.loadAndRestorePassions(),
@@ -69,13 +72,14 @@ void main() async {
   // Installe l'écouteur de rotation de token — sans popup permission
   NotificationService.setupTokenRefreshListener();
 
-  runApp(DiscoverApp(showOnboarding: !onboardingDone));
+  runApp(DiscoverApp(showOnboarding: !onboardingDone, isGuest: isGuest));
 }
 
 class DiscoverApp extends StatefulWidget {
   final bool showOnboarding;
+  final bool isGuest;
 
-  const DiscoverApp({super.key, required this.showOnboarding});
+  const DiscoverApp({super.key, required this.showOnboarding, this.isGuest = false});
 
   @override
   State<DiscoverApp> createState() => _DiscoverAppState();
@@ -103,7 +107,7 @@ class _DiscoverAppState extends State<DiscoverApp> {
       title: 'Discover.',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.fromHex(ProfileData.instance.profileColorHex),
-      home: widget.showOnboarding ? const OnboardingScreen() : const MainShell(),
+      home: widget.showOnboarding ? const OnboardingScreen() : MainShell(isGuest: widget.isGuest),
     );
   }
 }

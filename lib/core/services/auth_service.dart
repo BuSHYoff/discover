@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH SERVICE
@@ -32,6 +33,22 @@ class AuthService {
     final String? idToken = account.authentication.idToken;
     final credential = GoogleAuthProvider.credential(idToken: idToken);
     return await _auth.signInWithCredential(credential);
+  }
+
+  // ── Apple ───────────────────────────────────────────────────────────────────
+
+  static Future<UserCredential?> signInWithApple() async {
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+    final oauthCredential = OAuthProvider('apple.com').credential(
+      idToken: appleCredential.identityToken,
+      accessToken: appleCredential.authorizationCode,
+    );
+    return await _auth.signInWithCredential(oauthCredential);
   }
 
   // ── Email / Mot de passe ─────────────────────────────────────────────────────

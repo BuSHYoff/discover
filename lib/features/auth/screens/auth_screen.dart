@@ -24,6 +24,18 @@ class AuthScreen extends StatelessWidget {
       backgroundColor: AppColors.cream,
       body: SafeArea(
         child: PageAuth(
+          onContinueAsGuest: () async {
+            await OnboardingData.markDoneAsGuest();
+            if (!context.mounted) return;
+            Navigator.of(context).pushAndRemoveUntil(
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => const MainShell(isGuest: true),
+                transitionsBuilder: (_, __, ___, child) => child,
+                transitionDuration: Duration.zero,
+              ),
+              (_) => false,
+            );
+          },
           onAuthSuccess: () async {
             final user = FirebaseAuth.instance.currentUser;
             if (user == null) return;

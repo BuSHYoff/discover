@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:discover/core/theme/app_theme.dart';
+import 'package:discover/features/onboarding/screens/onboarding_screen.dart';
 
 class ProposePassionScreen extends StatefulWidget {
   const ProposePassionScreen({super.key});
@@ -106,6 +107,8 @@ class _ProposePassionScreenState extends State<ProposePassionScreen> {
     );
   }
 
+  bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
@@ -163,7 +166,13 @@ class _ProposePassionScreenState extends State<ProposePassionScreen> {
           ),
         ),
       ),
-      body: GestureDetector(
+      body: !_isLoggedIn
+          ? _GuestBody(onCreateAccount: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+              );
+            })
+          : GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
         child: Column(
@@ -313,6 +322,75 @@ class _ProposePassionScreenState extends State<ProposePassionScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── GUEST BODY ───────────────────────────────────────────────────────────────
+
+class _GuestBody extends StatelessWidget {
+  final VoidCallback onCreateAccount;
+  const _GuestBody({required this.onCreateAccount});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final primaryLight = Color.lerp(primary, Colors.white, 0.85)!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 0, 32, 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+              color: primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.lightbulb_outline_rounded, color: primary, size: 30),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Une idée de passion ?',
+            style: GoogleFonts.firaSansCondensed(
+              fontSize: 36,
+              fontWeight: FontWeight.w900,
+              color: AppColors.ink,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Crée un compte pour soumettre tes suggestions et contribuer à faire grandir la communauté Discover.',
+            style: GoogleFonts.firaSansCondensed(
+              fontSize: 15,
+              fontWeight: FontWeight.w400,
+              color: AppColors.inkSoft,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 36),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: onCreateAccount,
+              style: FilledButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Text(
+                'Créer un compte',
+                style: GoogleFonts.firaSansCondensed(
+                    fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
