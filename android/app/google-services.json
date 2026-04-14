@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "240632493418-g2kgnahjuli4aoi4kbf0jqnoa8ebq3g8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.baptiste.discover",
+            "certificate_hash": "85e9fbd8d0e3fc3e823d84427133e9f3dddd223e"
+          }
+        },
+        {
           "client_id": "240632493418-afu40a0d2t2rr0oblvncgo8vtvrt5pug.apps.googleusercontent.com",
           "client_type": 3
         }
