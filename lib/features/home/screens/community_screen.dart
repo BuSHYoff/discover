@@ -11,6 +11,7 @@ import 'package:discover/features/home/widgets/post_card.dart';
 import 'package:discover/features/home/widgets/comments_sheet.dart';
 import 'package:discover/features/home/widgets/share_creation_sheet.dart';
 import 'package:discover/features/home/widgets/edit_post_sheet.dart';
+import 'package:discover/features/home/widgets/news_tab.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 class CommunityScreen extends StatefulWidget {
@@ -21,13 +22,24 @@ class CommunityScreen extends StatefulWidget {
   State<CommunityScreen> createState() => _CommunityScreenState();
 }
 
-class _CommunityScreenState extends State<CommunityScreen> {
+class _CommunityScreenState extends State<CommunityScreen>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollCtrl = ScrollController();
+  late TabController _tabCtrl;
+
   String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
   bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
 
   @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
+    _tabCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -185,6 +197,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: NestedScrollView(
@@ -233,68 +247,93 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   ],
                 ),
               ),
-              if (_isLoggedIn)
-                Builder(builder: (context) {
-                  final primary = Theme.of(context).colorScheme.primary;
-                  return GestureDetector(
-                    onTap: _openPublish,
-                    child: Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(
-                        color: primary, shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(
-                            color: primary.withValues(alpha: 0.25),
-                            blurRadius: 10, offset: const Offset(0, 4))],
-                      ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 24),
+              if (_isLoggedIn && _tabCtrl.index == 0)
+                GestureDetector(
+                  onTap: _openPublish,
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: primary, shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(
+                          color: primary.withValues(alpha: 0.25),
+                          blurRadius: 10, offset: const Offset(0, 4))],
                     ),
-                  );
-                }),
+                    child: const Icon(Icons.add, color: Colors.white, size: 24),
+                  ),
+                ),
             ]),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(44),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: TabBar(
+                  controller: _tabCtrl,
+                  indicatorColor: primary,
+                  indicatorWeight: 2.5,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  labelColor: primary,
+                  unselectedLabelColor: AppColors.inkSoft,
+                  dividerColor: Colors.black.withValues(alpha: 0.06),
+                  labelStyle: GoogleFonts.firaSansCondensed(
+                      fontSize: 14, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: GoogleFonts.firaSansCondensed(
+                      fontSize: 14, fontWeight: FontWeight.w400),
+                  tabs: const [
+                    Tab(text: 'Publications'),
+                    Tab(text: 'Actualités'),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
-        body: StreamBuilder<List<CommunityPost>>(
-          stream: CommunityService.streamPosts(widget.passion.id),
-          builder: (context, snap) {
-            if (snap.hasError) {
-              debugPrint('[CommunityScreen] stream error: ${snap.error}');
-              return const _ErrorState();
-            }
-
-            if (snap.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: CircularProgressIndicator(
-                    color: Theme.of(context).colorScheme.primary, strokeWidth: 2),
-              );
-            }
-
-            final posts = snap.data ?? [];
-
-            if (posts.isEmpty) {
-              return _EmptyFeed(
-                passionName: widget.passion.name,
-                onPublish: _isLoggedIn ? _openPublish : null,
-              );
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.only(top: 8, bottom: 32),
-              itemCount: posts.length,
-              itemBuilder: (_, i) {
-                final post = posts[i];
-                return PostCard(
-                  post:      post,
-                  isOwner:   post.authorId == _myUid,
-                  onLike:    () => _toggleLike(post),
-                  onComment: () => _openComments(post),
-                  onShare:   () => _sharePost(post),
-                  onEdit:    () => _editPost(post),
-                  onDelete:  () => _deletePost(post),
-                  onReport:  () => _reportPost(post),
+        body: TabBarView(
+          controller: _tabCtrl,
+          children: [
+            // ── Onglet Publications ─────────────────────────────────────────
+            StreamBuilder<List<CommunityPost>>(
+              stream: CommunityService.streamPosts(widget.passion.id),
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  debugPrint('[CommunityScreen] stream error: ${snap.error}');
+                  return const _ErrorState();
+                }
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                        color: primary, strokeWidth: 2),
+                  );
+                }
+                final posts = snap.data ?? [];
+                if (posts.isEmpty) {
+                  return _EmptyFeed(
+                    passionName: widget.passion.name,
+                    onPublish: _isLoggedIn ? _openPublish : null,
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 32),
+                  itemCount: posts.length,
+                  itemBuilder: (_, i) {
+                    final post = posts[i];
+                    return PostCard(
+                      post:      post,
+                      isOwner:   post.authorId == _myUid,
+                      onLike:    () => _toggleLike(post),
+                      onComment: () => _openComments(post),
+                      onShare:   () => _sharePost(post),
+                      onEdit:    () => _editPost(post),
+                      onDelete:  () => _deletePost(post),
+                      onReport:  () => _reportPost(post),
+                    );
+                  },
                 );
               },
-            );
-          },
+            ),
+
+            // ── Onglet Actualités ───────────────────────────────────────────
+            NewsTab(passionName: widget.passion.name),
+          ],
         ),
       ),
     );
