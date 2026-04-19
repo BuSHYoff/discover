@@ -19,10 +19,7 @@ class ShareCreationSheet extends StatelessWidget {
     if (xfile == null) return;
     if (!context.mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CreatePostScreen(
-        passion: passion,
-        image:   File(xfile.path),
-      ),
+      builder: (_) => CreatePostScreen(passion: passion),
     ));
   }
 

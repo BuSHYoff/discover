@@ -9,6 +9,7 @@ class CommunityPost {
   final String authorInitials;
   final String authorColor;
   final String imageUrl;
+  final String title;
   final String caption;
   final int    likeCount;
   final int    commentCount;
@@ -27,6 +28,7 @@ class CommunityPost {
     required this.authorInitials,
     required this.authorColor,
     required this.imageUrl,
+    required this.title,
     required this.caption,
     required this.likeCount,
     required this.commentCount,
@@ -58,6 +60,7 @@ class CommunityPost {
       authorInitials: authorInitials,
       authorColor:    authorColor,
       imageUrl:       d['imageUrl']      ?? '',
+      title:          d['title']         ?? '',
       caption:        d['caption']       ?? '',
       likeCount:      (d['likeCount']    ?? 0) as int,
       commentCount:   (d['commentCount'] ?? 0) as int,

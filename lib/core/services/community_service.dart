@@ -163,6 +163,7 @@ class CommunityService {
   static Future<void> addPost({
     required String passionId,
     required File   imageFile,
+    required String title,
     required String caption,
   }) async {
     final user = _me;
@@ -177,6 +178,7 @@ class CommunityService {
       'passionId':    passionId,
       'authorId':     user.uid,
       'imageUrl':     imageUrl,
+      'title':        title,
       'caption':      caption,
       'likeCount':    0,
       'commentCount': 0,
