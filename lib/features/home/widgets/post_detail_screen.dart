@@ -6,6 +6,7 @@ import 'package:discover/core/models/passion.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
 import 'package:discover/features/home/widgets/avatar.dart';
 import 'package:discover/features/home/widgets/comments_sheet.dart';
+import 'package:discover/features/home/widgets/fullscreen_image_viewer.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -96,30 +97,72 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ]),
         ),
 
-        // ── Image ───────────────────────────────────────
+        // ── Image + contenu ─────────────────────────────
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Column(children: [
-              AspectRatio(
-                aspectRatio: 4 / 3,
-                child: CachedNetworkImage(
-                  imageUrl: _post.imageUrl,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
-                    color: primaryLight,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                          color: primary, strokeWidth: 2),
+              // Image cliquable → fullscreen
+              GestureDetector(
+                onTap: () => FullscreenImageViewer.open(
+                    context, _post.imageUrl,
+                    heroTag: 'detail-${_post.id}'),
+                child: Stack(children: [
+                  AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: Hero(
+                      tag: 'detail-${_post.id}',
+                      child: CachedNetworkImage(
+                        imageUrl: _post.imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          color: primaryLight,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                                color: primary, strokeWidth: 2),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          color: primaryLight,
+                          child: Icon(Icons.image_outlined,
+                              color: primary, size: 48),
+                        ),
+                      ),
                     ),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    color: primaryLight,
-                    child: Icon(Icons.image_outlined,
-                        color: primary, size: 48),
+                  // Icône expand bas droite
+                  Positioned(
+                    bottom: 10, right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.open_in_full_rounded,
+                          color: Colors.white, size: 16),
+                    ),
+                  ),
+                ]),
+              ),
+
+              // ── Titre ─────────────────────────────────
+              if (_post.title.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _post.title,
+                      style: GoogleFonts.firaSansCondensed(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                        height: 1.3,
+                      ),
+                    ),
                   ),
                 ),
-              ),
 
               // ── Actions ───────────────────────────────
               Padding(

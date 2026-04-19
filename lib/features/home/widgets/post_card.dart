@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
 import 'package:discover/features/home/widgets/avatar.dart';
+import 'package:discover/features/home/widgets/fullscreen_image_viewer.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 class PostCard extends StatelessWidget {
@@ -27,6 +28,11 @@ class PostCard extends StatelessWidget {
     required this.onDelete,
     required this.onReport,
   });
+
+  void _openFullscreen(BuildContext context) {
+    FullscreenImageViewer.open(context, post.imageUrl,
+        heroTag: 'post-image-${post.id}');
+  }
 
   void _showMoreMenu(BuildContext context) {
     HapticFeedback.lightImpact();
@@ -92,25 +98,48 @@ class PostCard extends StatelessWidget {
           ]),
         ),
 
-        // ── Image (pas cliquable) ────────────────────────────────────────────
-        ClipRRect(
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: CachedNetworkImage(
-              imageUrl: post.imageUrl,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                color: primaryLight,
-                child: Center(
-                  child: CircularProgressIndicator(
-                      color: primary, strokeWidth: 2),
+        // ── Image (cliquable → plein écran) ─────────────────────────────────
+        GestureDetector(
+          onTap: () => _openFullscreen(context),
+          child: ClipRRect(
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Stack(children: [
+                Hero(
+                  tag: 'post-image-${post.id}',
+                  child: SizedBox.expand(
+                    child: CachedNetworkImage(
+                      imageUrl: post.imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: primaryLight,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                              color: primary, strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        color: primaryLight,
+                        child: Icon(Icons.image_outlined,
+                            color: primary, size: 40),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              errorWidget: (_, __, ___) => Container(
-                color: primaryLight,
-                child: Icon(Icons.image_outlined,
-                    color: primary, size: 40),
-              ),
+                // Icône expand bas droite
+                Positioned(
+                  bottom: 10, right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.open_in_full_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                ),
+              ]),
             ),
           ),
         ),
@@ -222,25 +251,27 @@ class PostCard extends StatelessWidget {
           ]),
         ),
 
-        // ── Description ─────────────────────────────────────────────────────
-        if (post.caption.isNotEmpty)
+        // ── Titre + Description ──────────────────────────────────────────────
+        if (post.title.isNotEmpty || post.caption.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Description',
-                    style: GoogleFonts.firaSansCondensed(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.inkSoft,
-                        letterSpacing: 0.4)),
-                const SizedBox(height: 4),
-                Text(post.caption,
-                    style: GoogleFonts.firaSansCondensed(
-                        fontSize: 13,
-                        color: AppColors.ink,
-                        height: 1.4)),
+                if (post.title.isNotEmpty) ...[
+                  Text(post.title,
+                      style: GoogleFonts.firaSansCondensed(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink)),
+                  if (post.caption.isNotEmpty) const SizedBox(height: 4),
+                ],
+                if (post.caption.isNotEmpty)
+                  Text(post.caption,
+                      style: GoogleFonts.firaSansCondensed(
+                          fontSize: 13,
+                          color: AppColors.inkSoft,
+                          height: 1.4)),
               ],
             ),
           )

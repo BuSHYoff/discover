@@ -1068,11 +1068,11 @@ class _PostThumb extends StatelessWidget {
                   color: AppColors.inkSoft, size: 28),
             ),
           ),
-          // Overlay dégradé + stats
+          // Overlay dégradé + stats + expand
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
+              padding: const EdgeInsets.fromLTRB(6, 12, 6, 6),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -1084,16 +1084,19 @@ class _PostThumb extends StatelessWidget {
                 ),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.favorite_rounded,
                       size: 10, color: Colors.white.withValues(alpha: 0.9)),
                   const SizedBox(width: 3),
-                  Text('${post.likeCount}',
-                      style: GoogleFonts.firaSansCondensed(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white)),
+                  Expanded(
+                    child: Text('${post.likeCount}',
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white)),
+                  ),
+                  const Icon(Icons.open_in_full_rounded,
+                      size: 10, color: Colors.white),
                 ],
               ),
             ),

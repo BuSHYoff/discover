@@ -3,14 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // ─── MODÈLE PASSION ──────────────────────────────────────────────────────────
 
 class Passion {
-  final String id;
-  final String name;
-  final String category;
+  final String  id;
+  final String  name;
+  final String  category;
   final List<String> tags;
-  final String country;
-  final String description;
-  final String tagline;
-  final String imageUrl;
+  final String  country;
+  final String  description;
+  final String  tagline;
+  final String  imageUrl;
+  final String? subreddit; // ex: "baduk" pour r/baduk
 
   const Passion({
     required this.id,
@@ -21,6 +22,7 @@ class Passion {
     required this.description,
     required this.tagline,
     this.imageUrl = '',
+    this.subreddit,
   });
 
   factory Passion.fromJson(Map<String, dynamic> j) => Passion(
@@ -32,6 +34,7 @@ class Passion {
     description: j['description'] as String? ?? '',
     tagline:     j['tagline']     as String? ?? '',
     imageUrl:    j['imageUrl']    as String? ?? '',
+    subreddit:   j['subreddit']   as String?,
   );
 }
 
