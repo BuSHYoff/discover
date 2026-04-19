@@ -31,7 +31,7 @@ class ProgressCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Ma progression', style: GoogleFonts.firaSansCondensed(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
-              Text('${JourneyProgress.stepNames[progress.currentStep.clamp(0, 3)]} · étape ${progress.currentStep + 1}/4',
+              Text('${JourneyProgress.stepNames[progress.currentStep.clamp(0, 3)]} · étape ${progress.currentStep + 1}/3',
                   style: GoogleFonts.firaSansCondensed(fontSize: 11.5, color: AppColors.inkSoft)),
             ])),
             Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft.withValues(alpha: 0.4), size: 18),

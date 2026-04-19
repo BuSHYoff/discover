@@ -515,7 +515,7 @@ class _DetailScreenState extends State<DetailScreen>
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w700,
                                                   color: AppColors.ink)),
-                                          Text('Photos & commentaires',
+                                          Text('Posts & Actualités',
                                               style: GoogleFonts.firaSansCondensed(
                                                   fontSize: 10.5,
                                                   color: AppColors.inkSoft)),
