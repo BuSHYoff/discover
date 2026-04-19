@@ -6,10 +6,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:discover/core/models/passion.dart';
 import 'package:discover/core/services/community_service.dart';
+import 'package:discover/core/services/reddit_service.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
+import 'package:discover/features/home/widgets/feed_item.dart';
 import 'package:discover/features/home/widgets/post_card.dart';
+import 'package:discover/features/home/widgets/reddit_post_card.dart';
 import 'package:discover/features/home/widgets/comments_sheet.dart';
-import 'package:discover/features/home/widgets/share_creation_sheet.dart';
+import 'package:discover/features/home/screens/create_post_screen.dart';
 import 'package:discover/features/home/widgets/edit_post_sheet.dart';
 import 'package:discover/features/home/widgets/news_tab.dart';
 import 'package:discover/core/theme/app_theme.dart';
@@ -48,12 +51,9 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   void _openPublish() {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => ShareCreationSheet(passion: widget.passion),
-    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CreatePostScreen(passion: widget.passion),
+    ));
   }
 
   // ── Like ──────────────────────────────────────────────────────────────────
@@ -291,44 +291,17 @@ class _CommunityScreenState extends State<CommunityScreen>
           controller: _tabCtrl,
           children: [
             // ── Onglet Publications ─────────────────────────────────────────
-            StreamBuilder<List<CommunityPost>>(
-              stream: CommunityService.streamPosts(widget.passion.id),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  debugPrint('[CommunityScreen] stream error: ${snap.error}');
-                  return const _ErrorState();
-                }
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                        color: primary, strokeWidth: 2),
-                  );
-                }
-                final posts = snap.data ?? [];
-                if (posts.isEmpty) {
-                  return _EmptyFeed(
-                    passionName: widget.passion.name,
-                    onPublish: _isLoggedIn ? _openPublish : null,
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 32),
-                  itemCount: posts.length,
-                  itemBuilder: (_, i) {
-                    final post = posts[i];
-                    return PostCard(
-                      post:      post,
-                      isOwner:   post.authorId == _myUid,
-                      onLike:    () => _toggleLike(post),
-                      onComment: () => _openComments(post),
-                      onShare:   () => _sharePost(post),
-                      onEdit:    () => _editPost(post),
-                      onDelete:  () => _deletePost(post),
-                      onReport:  () => _reportPost(post),
-                    );
-                  },
-                );
-              },
+            _PublicationsTab(
+              passion:     widget.passion,
+              myUid:       _myUid,
+              isLoggedIn:  _isLoggedIn,
+              onPublish:   _openPublish,
+              onLike:      _toggleLike,
+              onComment:   _openComments,
+              onShare:     _sharePost,
+              onEdit:      _editPost,
+              onDelete:    _deletePost,
+              onReport:    _reportPost,
             ),
 
             // ── Onglet Actualités ───────────────────────────────────────────
@@ -336,6 +309,126 @@ class _CommunityScreenState extends State<CommunityScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Publications Tab ──────────────────────────────────────────────────────────
+
+class _PublicationsTab extends StatefulWidget {
+  final Passion            passion;
+  final String?            myUid;
+  final bool               isLoggedIn;
+  final VoidCallback       onPublish;
+  final void Function(CommunityPost) onLike;
+  final void Function(CommunityPost) onComment;
+  final void Function(CommunityPost) onShare;
+  final void Function(CommunityPost) onEdit;
+  final void Function(CommunityPost) onDelete;
+  final void Function(CommunityPost) onReport;
+
+  const _PublicationsTab({
+    required this.passion,
+    required this.myUid,
+    required this.isLoggedIn,
+    required this.onPublish,
+    required this.onLike,
+    required this.onComment,
+    required this.onShare,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onReport,
+  });
+
+  @override
+  State<_PublicationsTab> createState() => _PublicationsTabState();
+}
+
+class _PublicationsTabState extends State<_PublicationsTab>
+    with AutomaticKeepAliveClientMixin {
+  List<RedditPost> _redditPosts  = [];
+  bool             _redditLoading = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReddit();
+  }
+
+  Future<void> _loadReddit() async {
+    final sub = widget.passion.subreddit;
+    if (sub == null || sub.isEmpty) return;
+    setState(() => _redditLoading = true);
+    final posts = await RedditService.fetchTopPosts(sub);
+    if (!mounted) return;
+    setState(() { _redditPosts = posts; _redditLoading = false; });
+  }
+
+  List<FeedItem> _merge(List<CommunityPost> appPosts) {
+    final items = <FeedItem>[
+      ...appPosts.map(AppFeedItem.new),
+      ..._redditPosts.map(RedditFeedItem.new),
+    ];
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return StreamBuilder<List<CommunityPost>>(
+      stream: CommunityService.streamPosts(widget.passion.id),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          debugPrint('[PublicationsTab] stream error: ${snap.error}');
+          return const _ErrorState();
+        }
+        if (snap.connectionState == ConnectionState.waiting || _redditLoading) {
+          return Center(
+            child: CircularProgressIndicator(color: primary, strokeWidth: 2),
+          );
+        }
+
+        final appPosts = snap.data ?? [];
+        final feed     = _merge(appPosts);
+
+        if (feed.isEmpty) {
+          return _EmptyFeed(
+            passionName: widget.passion.name,
+            onPublish:   widget.isLoggedIn ? widget.onPublish : null,
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 8, bottom: 32),
+          itemCount: feed.length,
+          itemBuilder: (_, i) {
+            final item = feed[i];
+            return switch (item) {
+              AppFeedItem(:final post) => PostCard(
+                  post:      post,
+                  isOwner:   post.authorId == widget.myUid,
+                  onLike:    () => widget.onLike(post),
+                  onComment: () => widget.onComment(post),
+                  onShare:   () => widget.onShare(post),
+                  onEdit:    () => widget.onEdit(post),
+                  onDelete:  () => widget.onDelete(post),
+                  onReport:  () => widget.onReport(post),
+                ),
+              RedditFeedItem(:final post) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
+                  child: RedditPostCard(post: post),
+                ),
+            };
+          },
+        );
+      },
     );
   }
 }
