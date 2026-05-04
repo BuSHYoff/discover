@@ -9,7 +9,13 @@ import 'package:discover/core/theme/app_theme.dart';
 class OriginBubble extends StatefulWidget {
   final String country;
   final String passionId;
-  const OriginBubble({super.key, required this.country, required this.passionId});
+  final double size;
+  const OriginBubble({
+    super.key,
+    required this.country,
+    required this.passionId,
+    this.size = 70.0,
+  });
 
   @override
   State<OriginBubble> createState() => _OriginBubbleState();
@@ -17,7 +23,7 @@ class OriginBubble extends StatefulWidget {
 
 class _OriginBubbleState extends State<OriginBubble>
     with SingleTickerProviderStateMixin {
-  static const double _size = 70.0;
+  double get _size => widget.size;
 
   late AnimationController _ctrl;
   late Animation<double> _scale;

@@ -70,6 +70,10 @@
 	<array>
 		<integer>1</integer>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Discover utilise ta position pour trouver des clubs et lieux pratiquant cette activité près de toi.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Discover utilise ta position pour trouver des clubs et lieux pratiquant cette activité près de toi.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Discover utilise la caméra pour prendre une photo pour ta publication.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
