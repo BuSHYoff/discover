@@ -21,6 +21,7 @@ import 'package:discover/features/home/widgets/origin_bubble.dart';
 import 'package:discover/features/home/widgets/cta_button.dart';
 import 'package:discover/core/theme/app_theme.dart';
 import 'package:discover/core/services/notification_service.dart';
+import 'package:discover/features/nearby/screens/nearby_screen.dart';
 
 // ─── PROVIDER DU CONTENU IA ───────────────────────────────────────────────────
 
@@ -462,12 +463,30 @@ class _DetailScreenState extends State<DetailScreen>
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── À PROPOS + CARTE ────────────────────────────────
                     FadeInUp(
-                        duration: const Duration(milliseconds: 300),
-                        child: DropCapText(text: passion.description)),
+                      duration: const Duration(milliseconds: 300),
+                      child: Stack(
+                        children: [
+                          DropCapText(text: passion.description),
+                          if (passion.country.isNotEmpty)
+                            Positioned(
+                              top: 0, right: 0,
+                              child: SizedBox(
+                                width: 70, height: 70,
+                                child: OriginBubble(
+                                  key: ValueKey(passion.country),
+                                  country: passion.country,
+                                  passionId: passion.id,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 20),
 
-                    // ── COMMUNAUTÉ + ORIGINE ────────────────────────────
+                    // ── AUTOUR DE MOI + COMMUNAUTÉ (50/50) ──────────────
                     FadeInUp(
                       duration: const Duration(milliseconds: 300),
                       delay: const Duration(milliseconds: 30),
@@ -476,6 +495,59 @@ class _DetailScreenState extends State<DetailScreen>
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Autour de moi
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => NearbyScreen(passion: passion),
+                                  ));
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: primaryLight,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: primary.withValues(alpha: 0.18),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(children: [
+                                    Container(
+                                      width: 34, height: 34,
+                                      decoration: BoxDecoration(
+                                        color: primary,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.near_me_rounded,
+                                          color: Colors.white, size: 17),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Autour de moi',
+                                              style: GoogleFonts.firaSansCondensed(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: primary)),
+                                          Text('Clubs & lieux',
+                                              style: GoogleFonts.firaSansCondensed(
+                                                  fontSize: 10.5,
+                                                  color: primary.withValues(alpha: 0.6))),
+                                        ],
+                                      ),
+                                    ),
+                                  ]),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Voir la communauté
                             Expanded(
                               child: GestureDetector(
                                 onTap: () {
@@ -485,7 +557,7 @@ class _DetailScreenState extends State<DetailScreen>
                                   ));
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
                                   decoration: BoxDecoration(
                                     color: AppColors.cream,
                                     borderRadius: BorderRadius.circular(18),
@@ -496,50 +568,36 @@ class _DetailScreenState extends State<DetailScreen>
                                   ),
                                   child: Row(children: [
                                     Container(
-                                      width: 36, height: 36,
+                                      width: 34, height: 34,
                                       decoration: BoxDecoration(
                                         color: primaryLight,
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Icon(Icons.photo_library_outlined,
-                                          color: primary, size: 18),
+                                          color: primary, size: 17),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text('Voir la communauté',
+                                          Text('Communauté',
                                               style: GoogleFonts.firaSansCondensed(
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w700,
                                                   color: AppColors.ink)),
-                                          Text('Posts & Actualités',
+                                          Text('Posts & Actus',
                                               style: GoogleFonts.firaSansCondensed(
                                                   fontSize: 10.5,
                                                   color: AppColors.inkSoft)),
                                         ],
                                       ),
                                     ),
-                                    Icon(Icons.arrow_forward_ios_rounded,
-                                        size: 12,
-                                        color: primary.withValues(alpha: 0.35)),
                                   ]),
                                 ),
                               ),
                             ),
-                            if (passion.country.isNotEmpty) ...[
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 70,
-                                child: OriginBubble(
-                                  key: ValueKey(passion.country),
-                                  country: passion.country,
-                                  passionId: passion.id,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
