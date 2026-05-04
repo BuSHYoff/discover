@@ -4,8 +4,10 @@ import 'package:discover/core/theme/app_theme.dart';
 
 class DropCapText extends StatefulWidget {
   final String text;
+  final String? tagline;
+  final Widget? rightWidget;
 
-  const DropCapText({super.key, required this.text});
+  const DropCapText({super.key, required this.text, this.tagline, this.rightWidget});
 
   @override
   State<DropCapText> createState() => _DropCapTextState();
@@ -22,9 +24,15 @@ class _DropCapTextState extends State<DropCapText> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.text.isEmpty) return const SizedBox.shrink();
+    if (widget.text.isEmpty && (widget.tagline == null || widget.tagline!.isEmpty)) {
+      return const SizedBox.shrink();
+    }
     final primary = Theme.of(context).colorScheme.primary;
-    final (firstSentence, rest) = _splitFirstSentence(widget.text);
+
+    // Si une tagline est fournie : elle est le titre en gras, le texte complet est le corps
+    final bool hasTagline = widget.tagline != null && widget.tagline!.isNotEmpty;
+    final String firstSentence = hasTagline ? widget.tagline! : _splitFirstSentence(widget.text).$1;
+    final String rest          = hasTagline ? widget.text      : _splitFirstSentence(widget.text).$2;
 
     return Container(
       decoration: BoxDecoration(
@@ -34,25 +42,42 @@ class _DropCapTextState extends State<DropCapText> {
       ),
       padding: const EdgeInsets.only(left: 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              'À PROPOS',
-              style: GoogleFonts.firaSansCondensed(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: primary,
-                letterSpacing: 1.4,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              firstSentence,
-              style: GoogleFonts.firaSansCondensed(
-                fontSize: 16,
-                height: 1.6,
-                color: AppColors.ink,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-              ),
+            // ── "À PROPOS" + firstSentence side-by-side with optional rightWidget ──
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'À PROPOS',
+                        style: GoogleFonts.firaSansCondensed(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: primary,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        firstSentence,
+                        style: GoogleFonts.firaSansCondensed(
+                          fontSize: 16,
+                          height: 1.6,
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.rightWidget != null) ...[
+                  const SizedBox(width: 12),
+                  widget.rightWidget!,
+                ],
+              ],
             ),
             if (rest.isNotEmpty) ...[
               const SizedBox(height: 6),
@@ -63,7 +88,7 @@ class _DropCapTextState extends State<DropCapText> {
                     : CrossFadeState.showFirst,
                 firstChild: Text(
                   rest,
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.firaSansCondensed(
                     fontSize: 15,
