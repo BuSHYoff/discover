@@ -7,8 +7,19 @@ class CTAButton extends StatefulWidget {
   final VoidCallback? onTap;
   final bool isResume;
   final bool isDone;
+  /// Pourcentage à afficher sur le bouton "Reprendre" (0–100). Null = pas affiché.
+  final int? percent;
+  /// Callback du bouton refresh affiché dans l'état "Activité terminée".
+  final VoidCallback? onRestart;
 
-  const CTAButton({super.key, required this.onTap, this.isResume = false, this.isDone = false});
+  const CTAButton({
+    super.key,
+    required this.onTap,
+    this.isResume  = false,
+    this.isDone    = false,
+    this.percent,
+    this.onRestart,
+  });
 
   @override
   State<CTAButton> createState() => _CTAButtonState();
@@ -54,7 +65,19 @@ class _CTAButtonState extends State<CTAButton>
             const SizedBox(height: 2),
             Text('Tu as complété cette passion', style: GoogleFonts.firaSansCondensed(fontSize: 11.5, color: AppColors.inkSoft.withValues(alpha: 0.7))),
           ])),
-          Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.inkSoft.withValues(alpha: 0.35)),
+          // Bouton refresh — seul élément cliquable dans cet état
+          GestureDetector(
+            onTap: widget.onRestart,
+            child: Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.refresh_rounded,
+                  size: 17, color: Colors.white),
+            ),
+          ),
         ]),
       );
     }
@@ -83,9 +106,28 @@ class _CTAButtonState extends State<CTAButton>
                 decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(13)),
                 child: Icon(widget.isResume ? Icons.play_circle_outline_rounded : Icons.rocket_launch_rounded, color: Colors.white, size: 20)),
             const SizedBox(width: 14),
-            Expanded(child: Text(
-                widget.isResume ? 'Reprendre l\'activité en cours' : 'Commencer l\'activité',
-                style: GoogleFonts.firaSansCondensed(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white))),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.isResume ? 'Reprendre l\'activité en cours' : 'Commencer l\'activité',
+                    style: GoogleFonts.firaSansCondensed(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                  if (widget.isResume && (widget.percent ?? 0) > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${widget.percent}% complété',
+                      style: GoogleFonts.firaSansCondensed(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
             Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Colors.white.withValues(alpha: 0.6)),
           ]),
         ),

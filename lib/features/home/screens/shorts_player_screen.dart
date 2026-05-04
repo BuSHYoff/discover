@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:discover/features/home/services/youtube_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHORTS PLAYER SCREEN — TikTok-style vertical PageView
-// Chaque page lance automatiquement la vidéo au swipe.
+// Utilise youtube_player_flutter (résout les erreurs 150/152 de l'IFrame).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ShortsPlayerScreen extends StatefulWidget {
@@ -33,41 +34,34 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
 
-    // Verrouille en portrait
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    // Verrouille en portrait, barre de statut blanche
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
     _controller = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        showControls:        false,
-        showFullscreenButton: false,
-        mute:                false,
-        loop:                false,
-        strictRelatedVideos: true,
-        playsInline:         true,
+      initialVideoId: widget.shorts[_currentIndex].id,
+      flags: const YoutubePlayerFlags(
+        autoPlay:               true,
+        mute:                   false,
+        enableCaption:          false,
+        controlsVisibleAtStart: false,
+        loop:                   true,
+        isLive:                 false,
       ),
     );
 
     _pageCtrl = PageController(initialPage: _currentIndex);
-
-    // Lance la première vidéo
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadVideo(_currentIndex);
-    });
   }
 
-  void _loadVideo(int index) {
-    if (index < 0 || index >= widget.shorts.length) return;
-    _controller.loadVideoById(videoId: widget.shorts[index].id);
+  void _loadVideo(int pageIndex) {
+    final actual = pageIndex % widget.shorts.length;
+    _controller.load(widget.shorts[actual].id);
   }
 
   @override
   void dispose() {
-    _controller.close();
+    _controller.dispose();
     _pageCtrl.dispose();
-    // Rétablit les orientations
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
     super.dispose();
@@ -75,71 +69,63 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // ── PageView vertical TikTok ────────────────────────────────────
-          YoutubePlayerScaffold(
-            controller: _controller,
-            builder: (context, player) {
-              return PageView.builder(
+    return YoutubePlayerBuilder(
+      // aspectRatio: 9/16 → YouTube sert les Shorts en portrait (pas 16:9)
+      player: YoutubePlayer(
+        controller:                  _controller,
+        showVideoProgressIndicator:  false,
+        aspectRatio:                 9 / 16,
+        bottomActions: const [],
+        topActions:    const [],
+      ),
+      builder: (context, player) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+
+              // ── PageView vertical TikTok ──────────────────────────────────
+              PageView.builder(
                 controller:      _pageCtrl,
                 scrollDirection: Axis.vertical,
-                itemCount:       widget.shorts.length,
+                // itemCount null = scroll infini ; on boucle via le modulo
                 onPageChanged: (index) {
                   setState(() => _currentIndex = index);
                   _loadVideo(index);
                 },
                 itemBuilder: (_, index) {
-                  final short = widget.shorts[index];
+                  final actual = index % widget.shorts.length;
                   return _ShortPage(
-                    short:      short,
-                    player:     player,
-                    isCurrent:  index == _currentIndex,
+                    short:     widget.shorts[actual],
+                    player:    player,
+                    isCurrent: index == _currentIndex,
                   );
                 },
-              );
-            },
-          ),
-
-          // ── Bouton fermer ────────────────────────────────────────────────
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 20),
-                ),
               ),
-            ),
-          ),
 
-          // ── Indicateur de progression (index / total) ────────────────────
-          Positioned(
-            top: 0, right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16, top: 18),
-                child: Text(
-                  '${_currentIndex + 1} / ${widget.shorts.length}',
-                  style: GoogleFonts.firaSansCondensed(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.7),
+              // ── Bouton fermer ─────────────────────────────────────────────
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 20),
+                    ),
                   ),
                 ),
               ),
-            ),
+
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -167,21 +153,37 @@ class _ShortPage extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Player (uniquement sur la page courante) ─────────────────────
+
+          // ── Contenu principal ─────────────────────────────────────────────
+          //
+          // Player 9:16 → scalé à la hauteur de l'écran via OverflowBox
+          // (scale by height, léger crop horizontal = style TikTok).
+          // Exemple iPhone 14 (390×844) :
+          //   player 9:16 → 474×844 ; ClipRect coupe 42px de chaque côté.
+          //
           if (isCurrent)
-            ColoredBox(
-              color: Colors.black,
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: 9 / 16,
+            ClipRect(
+              child: OverflowBox(
+                minWidth:  size.height * (9 / 16),
+                maxWidth:  size.height * (9 / 16),
+                minHeight: size.height,
+                maxHeight: size.height,
+                alignment: Alignment.center,
+                child: ColoredBox(
+                  color: Colors.black,
                   child: player,
                 ),
               ),
             )
           else
-            Container(color: Colors.black),
+            CachedNetworkImage(
+              imageUrl: short.thumbnailUrl,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: Colors.black),
+              errorWidget: (_, __, ___) => Container(color: Colors.black),
+            ),
 
-          // ── Dégradé bas pour le texte ─────────────────────────────────────
+          // ── Dégradé bas ────────────────────────────────────────────────────
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
@@ -199,7 +201,7 @@ class _ShortPage extends StatelessWidget {
             ),
           ),
 
-          // ── Titre + chaîne ───────────────────────────────────────────────
+          // ── Titre + chaîne ─────────────────────────────────────────────────
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: SafeArea(
@@ -235,10 +237,9 @@ class _ShortPage extends StatelessWidget {
             ),
           ),
 
-          // ── Chevrons swipe haut / bas ──────────────────────────────────
+          // ── Chevrons swipe ─────────────────────────────────────────────────
           Positioned(
-            right: 12,
-            bottom: 80,
+            right: 12, bottom: 80,
             child: Column(
               children: [
                 Icon(Icons.keyboard_arrow_up_rounded,

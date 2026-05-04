@@ -196,6 +196,6 @@ class PassionRepository {
 List<Passion> get allPassions => PassionRepository.instance.passions;
 
 const List<String> categories = [
-  'Art & Créativité', 'Corps & Mouvement', 'Gastronomie',
+  'Art & Créativité', 'Corps & Mouvement',
   'Nature & Exploration', 'Musique & Son', 'Sciences & Tech', 'Bien-être & Esprit',
 ];

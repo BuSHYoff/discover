@@ -278,15 +278,8 @@ class _VoirPlusCard extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 42, height: 42,
-                      decoration: BoxDecoration(
-                        color: primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 26),
-                    ),
+                    Icon(Icons.add,
+                        color: primary, size: 26),
                     const SizedBox(height: 10),
                     Text(
                       'Voir plus',

@@ -15,8 +15,6 @@ import 'package:discover/features/home/widgets/tips_page.dart';
 import 'package:discover/features/home/widgets/resources_page.dart';
 import 'package:discover/features/home/widgets/notifications_sheet.dart';
 import 'package:discover/features/home/widgets/drop_cap_text.dart';
-import 'package:discover/features/home/widgets/progress_card.dart';
-import 'package:discover/features/home/widgets/progress_sheet.dart';
 import 'package:discover/features/home/widgets/origin_bubble.dart';
 import 'package:discover/features/home/widgets/cta_button.dart';
 import 'package:discover/core/theme/app_theme.dart';
@@ -174,16 +172,6 @@ class _DetailScreenState extends State<DetailScreen>
     ));
   }
 
-  void _showProgressPopup() {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => ProgressSheet(progress: _progress, passion: passion),
-    );
-  }
-
   void _openSecrets() {
     HapticFeedback.lightImpact();
     Navigator.of(context).push(MaterialPageRoute(
@@ -194,57 +182,129 @@ class _DetailScreenState extends State<DetailScreen>
   void _showNotificationsModal() async {
     HapticFeedback.lightImpact();
 
-    // Vérifier la permission d'abord
-    final granted = await NotificationService.isPermissionGranted();
+    // Vérifier / demander la permission avant d'ouvrir la sheet
+    bool granted = await NotificationService.isPermissionGranted();
     if (!mounted) return;
 
     if (!granted) {
-      // Montrer d'abord la sheet, et si l'user active → demander la permission
+      granted = await NotificationService.requestPermission();
+      if (!mounted) return;
+      if (!granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Active les notifications dans les réglages pour recevoir des rappels.',
+              style: GoogleFonts.firaSansCondensed(fontSize: 13),
+            ),
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
     }
+
+    // Charger les rappels existants
+    final saved = await NotificationService.getReminders(passion.id);
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => NotificationsSheet(
-        enabled: _reminderEnabled,
-        onChanged: (enable) async {
-          Navigator.of(context).pop();
-          if (enable) {
-            // Vérifier/demander la permission
-            bool ok = await NotificationService.isPermissionGranted();
-            if (!ok) {
-              ok = await NotificationService.requestPermission();
-            }
-            if (ok) {
-              await NotificationService.scheduleWeeklyReminder(
-                passionId: passion.id,
-                passionName: passion.name,
-              );
-              if (mounted) setState(() => _reminderEnabled = true);
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Active les notifications dans les réglages pour recevoir des rappels.',
-                      style: GoogleFonts.firaSansCondensed(fontSize: 13),
-                    ),
-                    backgroundColor: AppColors.ink,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-              }
-            }
-          } else {
-            await NotificationService.cancelReminder(passion.id);
-            if (mounted) setState(() => _reminderEnabled = false);
-          }
+        savedReminders: saved,
+        onSave: (reminders) async {
+          await NotificationService.scheduleReminders(
+            passionId: passion.id,
+            passionName: passion.name,
+            reminders: reminders,
+          );
+          if (mounted) setState(() => _reminderEnabled = reminders.isNotEmpty);
         },
       ),
     );
+  }
+
+  Future<void> _restartActivity() async {
+    HapticFeedback.lightImpact();
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        decoration: const BoxDecoration(
+          color: AppColors.cream,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            Text('Recommencer l\'activité',
+                style: GoogleFonts.firaSansCondensed(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink)),
+            const SizedBox(height: 8),
+            Text(
+              'Ta progression sera réinitialisée.\nVeux-tu vraiment recommencer depuis le début ?',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.firaSansCondensed(
+                  fontSize: 13.5, color: AppColors.inkSoft, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(sheetCtx, false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text('Annuler',
+                          style: GoogleFonts.firaSansCondensed(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: AppColors.inkSoft)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(sheetCtx, true),
+                  child: Builder(
+                    builder: (btnCtx) => Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(btnCtx).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: Text('Recommencer',
+                            style: GoogleFonts.firaSansCondensed(
+                                fontSize: 14, fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await _progress.reset();
+    _progress.syncToFirestore(); // met à jour Firebase avec état vide
   }
 
   void _openRessources() {
@@ -265,7 +325,7 @@ class _DetailScreenState extends State<DetailScreen>
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: 200,
             pinned: true,
             backgroundColor: AppColors.cream,
             automaticallyImplyLeading: false,
@@ -467,22 +527,20 @@ class _DetailScreenState extends State<DetailScreen>
                     // ── À PROPOS + CARTE ────────────────────────────────
                     FadeInUp(
                       duration: const Duration(milliseconds: 300),
-                      child: Stack(
-                        children: [
-                          DropCapText(text: passion.description),
-                          if (passion.country.isNotEmpty)
-                            Positioned(
-                              top: 0, right: 0,
-                              child: SizedBox(
-                                width: 70, height: 70,
+                      child: DropCapText(
+                        tagline: passion.tagline,
+                        text: passion.description,
+                        rightWidget: passion.country.isNotEmpty
+                            ? SizedBox(
+                                width: 70,
+                                height: 70,
                                 child: OriginBubble(
                                   key: ValueKey(passion.country),
                                   country: passion.country,
                                   passionId: passion.id,
                                 ),
-                              ),
-                            ),
-                        ],
+                              )
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -615,32 +673,20 @@ class _DetailScreenState extends State<DetailScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    FadeInUp(
-                      duration: const Duration(milliseconds: 300),
-                      delay: const Duration(milliseconds: 60),
-                      child: ListenableBuilder(
-                        listenable: _progress,
-                        builder: (_, __) => ProgressCard(
-                          progress: _progress,
-                          onTap: _showProgressPopup,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
                     ListenableBuilder(
                       listenable: _progress,
                       builder: (_, __) {
-                        final isDone = _progress.started &&
-                            _progress.globalPercent >= 1.0;
+                        final isDone   = _progress.started && _progress.globalPercent >= 1.0;
                         final isResume = _progress.started && !isDone;
                         return FadeInUp(
                           duration: const Duration(milliseconds: 300),
-                          delay: const Duration(milliseconds: 130),
+                          delay: const Duration(milliseconds: 60),
                           child: CTAButton(
-                            onTap: isDone ? null : _openJourney,
-                            isResume: isResume,
-                            isDone: isDone,
+                            onTap:      isDone ? null : _openJourney,
+                            isResume:   isResume,
+                            isDone:     isDone,
+                            percent:    isResume ? _progress.globalPercentInt : null,
+                            onRestart:  isDone ? _restartActivity : null,
                           ),
                         );
                       },

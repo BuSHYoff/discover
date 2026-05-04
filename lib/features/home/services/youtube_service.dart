@@ -29,12 +29,25 @@ class YoutubeShort {
 
     return YoutubeShort(
       id:           (j['id'] as Map<String, dynamic>)['videoId'] as String,
-      title:        snippet['title']        as String,
-      channelName:  snippet['channelTitle'] as String,
-      thumbnailUrl: thumb['url']            as String,
+      title:        _decodeHtml(snippet['title']        as String),
+      channelName:  _decodeHtml(snippet['channelTitle'] as String),
+      thumbnailUrl: thumb['url']                        as String,
     );
   }
 }
+
+/// Décode les entités HTML courantes retournées par l'API YouTube.
+/// YouTube encode les titres en HTML : &#39; → ' , &amp; → & , &quot; → " , etc.
+String _decodeHtml(String text) => text
+    .replaceAll('&#39;',  "'")
+    .replaceAll('&amp;',  '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&lt;',   '<')
+    .replaceAll('&gt;',   '>')
+    .replaceAll('&#34;',  '"')
+    .replaceAll('&#38;',  '&')
+    .replaceAll('&#60;',  '<')
+    .replaceAll('&#62;',  '>');
 
 class YoutubeService {
   YoutubeService._();
@@ -47,6 +60,8 @@ class YoutubeService {
   // Cache simple : passionId → résultats
   static final Map<String, List<YoutubeShort>> _cache = {};
 
+  static void clearCache() => _cache.clear();
+
   static Future<List<YoutubeShort>> fetchShorts(
     String passionName,
     String passionId,
@@ -54,12 +69,13 @@ class YoutubeService {
     if (_cache.containsKey(passionId)) return _cache[passionId]!;
 
     final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-      'part':          'snippet',
-      'q':             passionName,
-      'type':          'video',
-      'videoDuration': 'short',
-      'maxResults':    '15',
-      'key':           _apiKey,
+      'part':             'snippet',
+      'q':                passionName,
+      'type':             'video',
+      'videoDuration':    'short',
+      'videoEmbeddable':  'true',   // filtre uniquement les vidéos intégrables
+      'maxResults':       '15',
+      'key':              _apiKey,
     });
 
     final response = await http.get(uri);
