@@ -22,6 +22,7 @@ import 'package:discover/features/home/widgets/cta_button.dart';
 import 'package:discover/core/theme/app_theme.dart';
 import 'package:discover/core/services/notification_service.dart';
 import 'package:discover/features/nearby/screens/nearby_screen.dart';
+import 'package:discover/features/home/widgets/shorts_row.dart';
 
 // ─── PROVIDER DU CONTENU IA ───────────────────────────────────────────────────
 
@@ -485,6 +486,16 @@ class _DetailScreenState extends State<DetailScreen>
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // ── YOUTUBE SHORTS ──────────────────────────────────
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 300),
+                      delay: const Duration(milliseconds: 20),
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: ShortsRow(passion: passion),
+                      ),
+                    ),
 
                     // ── AUTOUR DE MOI + COMMUNAUTÉ (50/50) ──────────────
                     FadeInUp(
