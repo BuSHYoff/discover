@@ -26,7 +26,8 @@ class _ShortsRowState extends State<ShortsRow> {
   // Largeur fixe de chaque card
   static const double _cardWidth  = 112.0;
   // Hauteur = ratio 9:16 + zone texte (titre 2 lignes + channel + espaceurs)
-  static const double _cardHeight = _cardWidth * (16 / 9) + 56;
+  // Marge généreuse pour tenir compte des métriques de police réelles.
+  static const double _cardHeight = _cardWidth * (16 / 9) + 72;
 
   @override
   void initState() {
@@ -77,17 +78,25 @@ class _ShortsRowState extends State<ShortsRow> {
         itemCount: displayed.length + (showMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, i) {
+          // Align(topLeft) casse la contrainte tight en hauteur du ListView
+          // → le Column peut se dimensionner à son contenu réel.
           if (i < displayed.length) {
-            return _ShortCard(
-              short:   displayed[i],
-              primary: primary,
-              onTap:   () => _openPlayer(i),
+            return Align(
+              alignment: Alignment.topLeft,
+              child: _ShortCard(
+                short:   displayed[i],
+                primary: primary,
+                onTap:   () => _openPlayer(i),
+              ),
             );
           }
           // Card "Voir plus"
-          return _VoirPlusCard(
-            primary:  primary,
-            onTap:    () => _openPlayer(3),
+          return Align(
+            alignment: Alignment.topLeft,
+            child: _VoirPlusCard(
+              primary:  primary,
+              onTap:    () => _openPlayer(3),
+            ),
           );
         },
       ),
@@ -140,6 +149,7 @@ class _ShortCard extends StatelessWidget {
       child: SizedBox(
         width: _cardWidth,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
@@ -255,6 +265,7 @@ class _VoirPlusCard extends StatelessWidget {
       child: SizedBox(
         width: _cardWidth,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Thumbnail zone ─────────────────────────────────────────────
