@@ -24,6 +24,12 @@ class AuthService {
   /// Stream des changements d'état d'authentification.
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// Retourne l'ID Token actuel (utilisé pour les Bearer côté API). Null si
+  /// pas connecté. Forcer refresh si on vient de changer des custom claims.
+  static Future<String?> getIdToken({bool forceRefresh = false}) async {
+    return _auth.currentUser?.getIdToken(forceRefresh);
+  }
+
   // ── Google ──────────────────────────────────────────────────────────────────
 
   static Future<UserCredential?> signInWithGoogle() async {

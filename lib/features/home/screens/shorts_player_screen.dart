@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:discover/features/home/services/youtube_service.dart';
+import 'package:discover/core/models/passion.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHORTS PLAYER SCREEN — TikTok-style vertical PageView
@@ -11,7 +11,7 @@ import 'package:discover/features/home/services/youtube_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ShortsPlayerScreen extends StatefulWidget {
-  final List<YoutubeShort> shorts;
+  final List<AIVideo> shorts;
   final int                initialIndex;
 
   const ShortsPlayerScreen({
@@ -39,7 +39,8 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
     _controller = YoutubePlayerController(
-      initialVideoId: widget.shorts[_currentIndex].id,
+      initialVideoId:
+          YoutubePlayer.convertUrlToId(widget.shorts[_currentIndex].url) ?? '',
       flags: const YoutubePlayerFlags(
         autoPlay:               true,
         mute:                   false,
@@ -55,7 +56,8 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
 
   void _loadVideo(int pageIndex) {
     final actual = pageIndex % widget.shorts.length;
-    _controller.load(widget.shorts[actual].id);
+    final id = YoutubePlayer.convertUrlToId(widget.shorts[actual].url);
+    if (id != null && id.isNotEmpty) _controller.load(id);
   }
 
   @override
@@ -133,7 +135,7 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
 // ── Page individuelle ────────────────────────────────────────────────────────
 
 class _ShortPage extends StatelessWidget {
-  final YoutubeShort short;
+  final AIVideo short;
   final Widget       player;
   final bool         isCurrent;
 
@@ -177,7 +179,7 @@ class _ShortPage extends StatelessWidget {
             )
           else
             CachedNetworkImage(
-              imageUrl: short.thumbnailUrl,
+              imageUrl: short.effectiveThumbnail,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(color: Colors.black),
               errorWidget: (_, __, ___) => Container(color: Colors.black),
@@ -213,7 +215,7 @@ class _ShortPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      short.channelName,
+                      short.channel,
                       style: GoogleFonts.firaSansCondensed(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,

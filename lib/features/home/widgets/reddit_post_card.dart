@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:discover/core/services/reddit_service.dart';
+import 'package:discover/core/models/reddit_post.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────

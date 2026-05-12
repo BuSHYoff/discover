@@ -152,7 +152,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     OnboardingUniverseChoice('Art & Créativité',    '🎨', Color(0xFFF5E6D3), Color(0xFF8B5E3C)),
     OnboardingUniverseChoice('Corps & Mouvement',   '💪', Color(0xFFE8F0EB), AppColors.green),
     OnboardingUniverseChoice('Nature & Exploration','🌿', Color(0xFFECF5E8), Color(0xFF3A6B2C)),
-    OnboardingUniverseChoice('Gastronomie',         '🍳', Color(0xFFF5EBE0), Color(0xFF8B4513)),
     OnboardingUniverseChoice('Musique & Son',       '🎵', Color(0xFFEBE8F5), Color(0xFF4B3A8B)),
     OnboardingUniverseChoice('Sciences & Tech',     '🔬', Color(0xFFF0EBF5), Color(0xFF5C3A8B)),
   ];

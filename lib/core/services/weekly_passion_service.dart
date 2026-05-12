@@ -1,45 +1,30 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:discover/core/models/passion.dart';
+import 'package:discover/core/models/trending.dart';
+import 'package:discover/core/services/trending_service.dart';
 
-// ─── Modèle ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// WEEKLY PASSION SERVICE — wrapper compat
+// L'ancienne API (`fetch()`) renvoyait `WeeklyPassionData`. Le backend expose
+// désormais le même endpoint mais via TrendingService. On garde un alias pour
+// ne pas casser les écrans qui appellent encore `WeeklyPassionService.fetch()`.
+// ─────────────────────────────────────────────────────────────────────────────
 
 class WeeklyPassionData {
   final Passion passion;
   final String  description;
 
   const WeeklyPassionData({required this.passion, required this.description});
+
+  factory WeeklyPassionData.fromWeekly(WeeklyPassion w) =>
+      WeeklyPassionData(passion: w.passion, description: w.description);
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
-
 class WeeklyPassionService {
-  static final _db = FirebaseFirestore.instance;
+  WeeklyPassionService._();
 
-  /// Lit app_config/weekly_passion.
-  /// Retourne null si le document n'existe pas, si le passionId est invalide,
-  /// ou en cas d'erreur Firestore → la card n'est pas affichée.
   static Future<WeeklyPassionData?> fetch() async {
-    try {
-      final snap = await _db
-          .collection('app_config')
-          .doc('weekly_passion')
-          .get();
-
-      if (!snap.exists) return null;
-
-      final data        = snap.data();
-      final passionId   = data?['passionId']   as String? ?? '';
-      final description = data?['description'] as String? ?? '';
-
-      final passion = PassionRepository.instance.passions
-          .where((p) => p.id == passionId)
-          .firstOrNull;
-
-      if (passion == null || description.isEmpty) return null;
-
-      return WeeklyPassionData(passion: passion, description: description);
-    } catch (_) {
-      return null;
-    }
+    final w = await TrendingService.fetchWeeklyPassion();
+    if (w == null || w.description.isEmpty) return null;
+    return WeeklyPassionData.fromWeekly(w);
   }
 }

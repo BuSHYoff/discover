@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:discover/core/models/news_article.dart';
 import 'package:discover/core/services/news_service.dart';
 import 'package:discover/core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NEWS TAB — Onglet Actualités de la CommunityScreen
-// Charge les 10 dernières actus Google News pour une passion.
+// Charge les 20 dernières actus pour une passion via le backend (cache 30 min).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class NewsTab extends StatefulWidget {
+  /// L'ID Firestore de la passion. Le backend résout le nom pour la query.
+  final String passionId;
+  /// Affiché dans l'écran vide. Pas envoyé au backend.
   final String passionName;
-  const NewsTab({super.key, required this.passionName});
+  const NewsTab({
+    super.key,
+    required this.passionId,
+    required this.passionName,
+  });
 
   @override
   State<NewsTab> createState() => _NewsTabState();
@@ -34,13 +42,21 @@ class _NewsTabState extends State<NewsTab>
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = false; });
-    final articles = await NewsService.fetchNews(widget.passionName);
-    if (!mounted) return;
-    setState(() {
-      _articles = articles;
-      _loading  = false;
-      _error    = articles.isEmpty;
-    });
+    try {
+      final articles = await NewsService.fetchNews(
+        widget.passionId,
+        forceRefresh: true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _articles = articles;
+        _loading  = false;
+        _error    = articles.isEmpty;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _articles = []; _loading = false; _error = true; });
+    }
   }
 
   Future<void> _open(NewsArticle article) async {

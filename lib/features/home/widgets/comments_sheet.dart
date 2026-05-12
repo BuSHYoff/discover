@@ -22,13 +22,25 @@ class _CommentsSheetState extends State<CommentsSheet> {
   final _focusNode = FocusNode();
   bool _sending    = false;
 
-  // Stream stocké une seule fois → pas de rechargement au rebuild
-  late final Stream<List<CommunityComment>> _commentsStream;
+  // Future re-créé après chaque mutation (ajout de commentaire).
+  late Future<List<CommunityComment>> _commentsFuture;
 
   @override
   void initState() {
     super.initState();
-    _commentsStream = CommunityService.streamComments(widget.post.id);
+    _commentsFuture = CommunityService.fetchComments(
+      widget.post.id,
+      passionId: widget.passion.id,
+    );
+  }
+
+  Future<void> _refresh() async {
+    final future = CommunityService.fetchComments(
+      widget.post.id,
+      passionId: widget.passion.id,
+    );
+    setState(() { _commentsFuture = future; });
+    await future;
   }
 
   @override
@@ -45,7 +57,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
     setState(() => _sending = true);
     _textCtrl.clear();
     try {
-      await CommunityService.addComment(widget.post.id, text, widget.passion.id);
+      await CommunityService.addComment(
+        widget.post.id,
+        text,
+        passionId: widget.passion.id,
+      );
+      if (mounted) await _refresh();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -76,8 +93,8 @@ class _CommentsSheetState extends State<CommentsSheet> {
           child: Container(
             height: sheetHeight,
             color: AppColors.cream,
-            child: StreamBuilder<List<CommunityComment>>(
-              stream: _commentsStream,
+            child: FutureBuilder<List<CommunityComment>>(
+              future: _commentsFuture,
               builder: (context, snap) {
                 final comments = snap.data ?? [];
                 return Column(children: [
@@ -143,12 +160,29 @@ class _CommentsSheetState extends State<CommentsSheet> {
                                 child: CircularProgressIndicator(
                                     color: primary, strokeWidth: 2))
                             : comments.isEmpty
-                                ? Center(
-                                    child: Text('Sois le premier à commenter !',
-                                        style: GoogleFonts.firaSansCondensed(
-                                            fontSize: 14,
-                                            color: AppColors.inkSoft)))
-                            : ListView.builder(
+                                ? RefreshIndicator(
+                                    color: primary,
+                                    onRefresh: _refresh,
+                                    child: ListView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      children: [
+                                        const SizedBox(height: 80),
+                                        Center(
+                                          child: Text(
+                                              'Sois le premier à commenter !',
+                                              style: GoogleFonts
+                                                  .firaSansCondensed(
+                                                      fontSize: 14,
+                                                      color: AppColors.inkSoft)),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                            : RefreshIndicator(
+                                color: primary,
+                                onRefresh: _refresh,
+                                child: ListView.builder(
                                 keyboardDismissBehavior:
                                     ScrollViewKeyboardDismissBehavior.onDrag,
                                 padding: const EdgeInsets.fromLTRB(
@@ -226,6 +260,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                                     ),
                                   );
                                 },
+                              ),
                               ),
                   ),
 

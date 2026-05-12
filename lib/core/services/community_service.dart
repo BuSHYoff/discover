@@ -1,54 +1,52 @@
 import 'dart:io';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:discover/core/api/api_client.dart';
+import 'package:discover/core/models/community_feed_item.dart';
+import 'package:discover/core/models/post.dart';
+import 'package:discover/core/models/reddit_post.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMUNITY SERVICE
-// Posts     : community/{postId}          — stocke uniquement authorId
-// Comments  : community/{postId}/comments — stocke uniquement authorId
-// Auteurs   : résolus depuis users/{uid} via cache en mémoire
-// Images    : Cloudinary
+// Toutes les opérations posts/likes/comments passent par l'API NestJS.
+// L'upload d'image utilise la route signée `POST /passions/:id/posts/upload`
+// qui pousse vers Cloudinary côté backend.
+//
+// Important : l'API ne renvoie pas les infos d'auteur (username/color) dans
+// les posts pour rester léger. On résout ces infos en lazy via l'API
+// `GET /users/:uid` pour les écrans qui en ont besoin, avec cache mémoire.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CommunityService {
-  static final _db = FirebaseFirestore.instance;
+  CommunityService._();
 
-  static const _cloudName    = 'draevgkjl';
-  static const _uploadPreset = 'discover_unsigned';
-
-  // ── Cache utilisateurs (uid → données) ───────────────────────────────────
+  // ── Cache d'auteurs (uid → données users) ─────────────────────────────────
   static final Map<String, Map<String, dynamic>> _userCache = {};
 
-  static void clearUserCache() {
-    _userCache.clear();
-  }
+  static void clearUserCache() => _userCache.clear();
 
   static Future<Map<String, dynamic>> _getUser(String uid) async {
-    if (uid.isEmpty) return {};
-    // Ne sert le cache que si le username est déjà résolu
+    if (uid.isEmpty) return const {};
     final cached = _userCache[uid];
     if (cached != null && (cached['username'] as String?)?.isNotEmpty == true) {
       return cached;
     }
     try {
-      final snap = await _db.collection('users').doc(uid).get();
-      final data = snap.data() ?? {};
-      // Ne met en cache que si le username est présent (sinon on re-fetche la prochaine fois)
+      final data = await ApiClient.get<Map<String, dynamic>>('/users/$uid');
       if ((data['username'] as String?)?.isNotEmpty == true) {
         _userCache[uid] = data;
       }
       return data;
     } catch (_) {
-      return {};
+      return const {};
     }
   }
 
-  /// Précharge un lot d'UIDs en parallèle.
   static Future<void> _prefetchUsers(Iterable<String> uids) async {
-    final toLoad = uids.where((id) => id.isNotEmpty && !_userCache.containsKey(id)).toSet();
+    final toLoad =
+        uids.where((id) => id.isNotEmpty && !_userCache.containsKey(id)).toSet();
     if (toLoad.isEmpty) return;
     await Future.wait(toLoad.map(_getUser));
   }
@@ -78,286 +76,232 @@ class CommunityService {
     return colors[idx];
   }
 
-  static CollectionReference<Map<String, dynamic>> get _posts =>
-      _db.collection('community');
+  static String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
 
-  static User? get _me => FirebaseAuth.instance.currentUser;
+  // ── Posts ────────────────────────────────────────────────────────────────
 
-  // ── Mise à jour des stats de tendance ─────────────────────────────────────
-  // Incrémente / décrémente directement passions_stats/{passionId}.
-  // scoreDelta = likesDelta×3 + commentsDelta×2 + postsDelta×1
+  /// Fetch tous les posts d'une passion (page actuelle uniquement).
+  /// Pour la pagination cursor, on rechargerait avec `?cursor=…`.
+  ///
+  /// ⚠️  Cette méthode renvoie UNIQUEMENT les posts de l'app (pas Reddit).
+  /// Pour le feed mergé app + Reddit, utiliser [fetchCommunityFeed].
+  static Future<List<CommunityPost>> fetchPosts(String passionId, {int limit = 50}) async {
+    final json = await ApiClient.get<Map<String, dynamic>>(
+      '/passions/$passionId/posts',
+      query: {'limit': limit},
+      auth:  false,
+    );
+    final page = PaginatedPosts.fromJson(json);
+    return _hydratePosts(page.items);
+  }
 
-  static Future<void> _updateStats(
+  /// Feed community unifié — posts app + Reddit déjà mergés et triés
+  /// par date desc côté backend. Un seul appel HTTP.
+  ///
+  /// [includeReddit] : si false, n'inclut que les posts de l'app.
+  static Future<CommunityFeed> fetchCommunityFeed(
     String passionId, {
-    int postsDelta    = 0,
-    int likesDelta    = 0,
-    int commentsDelta = 0,
+    int limit = 50,
+    bool includeReddit = true,
   }) async {
-    if (passionId.isEmpty) return;
-    final scoreDelta =
-        likesDelta * 3 + commentsDelta * 2 + postsDelta * 1;
-    final updates = <String, dynamic>{};
-    if (postsDelta    != 0) updates['postsCount']    = FieldValue.increment(postsDelta);
-    if (likesDelta    != 0) updates['likesCount']    = FieldValue.increment(likesDelta);
-    if (commentsDelta != 0) updates['commentsCount'] = FieldValue.increment(commentsDelta);
-    if (scoreDelta    != 0) updates['trendScore']    = FieldValue.increment(scoreDelta);
-    if (updates.isEmpty) return;
-    await _db
-        .collection('passions_stats')
-        .doc(passionId)
-        .set(updates, SetOptions(merge: true));
-  }
+    final json = await ApiClient.get<Map<String, dynamic>>(
+      '/passions/$passionId/community',
+      query: {
+        'limit':         limit,
+        'includeReddit': includeReddit,
+      },
+      auth: false,
+    );
 
-  // ── Upload Cloudinary ────────────────────────────────────────────────────
+    final rawItems = (json['items'] as List? ?? const []).whereType<Map>();
+    final rawAppPosts = <Post>[];
+    final mapped     = <_PendingItem>[];
 
-  static Future<String> _uploadImage({
-    required File imageFile,
-    required String folder,
-  }) async {
-    final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/image/upload');
-    final request = http.MultipartRequest('POST', uri)
-      ..fields['upload_preset'] = _uploadPreset
-      ..fields['folder']        = folder
-      ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
-
-    final streamed = await request.send();
-    final body     = await streamed.stream.bytesToString();
-    if (streamed.statusCode != 200) {
-      throw Exception('Cloudinary upload failed: ${streamed.statusCode}\n$body');
+    // Première passe : on extrait les Post bruts pour les hydrater en batch
+    // (résolution des auteurs via /users/:uid en parallèle, cf. _hydratePosts).
+    for (final m in rawItems) {
+      final type = m['type'] as String? ?? '';
+      final post = Map<String, dynamic>.from(m['post'] as Map? ?? const {});
+      if (type == 'app') {
+        final p = Post.fromJson(post);
+        rawAppPosts.add(p);
+        mapped.add(_PendingItem.app(p));
+      } else if (type == 'reddit') {
+        mapped.add(_PendingItem.reddit(RedditPost.fromJson(post)));
+      }
     }
-    return (jsonDecode(body) as Map<String, dynamic>)['secure_url'] as String;
+
+    // Hydrate les posts app (auteur, color, etc.). Conserve l'ordre via lookup id.
+    final hydratedApp = await _hydratePosts(rawAppPosts);
+    final byId        = { for (final p in hydratedApp) p.id: p };
+
+    final items = <CommunityFeedItem>[];
+    for (final p in mapped) {
+      if (p.appPost != null) {
+        final hyd = byId[p.appPost!.id];
+        if (hyd != null) items.add(AppCommunityFeedItem(hyd));
+      } else if (p.redditPost != null) {
+        items.add(RedditCommunityFeedItem(p.redditPost!));
+      }
+    }
+
+    return CommunityFeed(
+      items:      items,
+      nextCursor: json['nextCursor'] as String?,
+    );
   }
 
-  // ── Posts ─────────────────────────────────────────────────────────────────
-
-  /// Stream des posts d'une passion. Les infos auteur sont résolues
-  /// depuis la collection users via le cache.
-  static Stream<List<CommunityPost>> streamPosts(String passionId) {
-    final uid = _me?.uid ?? '';
-    return _posts
-        .where('passionId', isEqualTo: passionId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .asyncMap((snap) async {
-          // Précharge tous les auteurs en une seule passe
-          await _prefetchUsers(
-              snap.docs.map((d) => d.data()['authorId'] as String? ?? ''));
-
-          return Future.wait(snap.docs.map((doc) async {
-            final authorId = doc.data()['authorId'] as String? ?? '';
-            final u        = await _getUser(authorId);
-            final name     = _name(u);
-            return CommunityPost.fromDoc(
-              snap:           doc,
-              currentUid:     uid,
-              authorName:     name,
-              authorInitials: _initials(name),
-              authorColor:    _color(u, authorId),
-            );
-          }));
-        });
+  /// Posts de l'utilisateur connecté.
+  static Future<List<CommunityPost>> fetchMyPosts() async {
+    final raw = await ApiClient.get<List<dynamic>>('/users/me/posts');
+    final posts = raw
+        .whereType<Map>()
+        .map((e) => Post.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return _hydratePosts(posts);
   }
 
-  /// Crée un post : stocke seulement authorId (pas de dénormalisation).
+  /// Crée un post — upload multipart vers Cloudinary via le backend.
   static Future<void> addPost({
     required String passionId,
     required File   imageFile,
     required String title,
     required String caption,
   }) async {
-    final user = _me;
-    if (user == null) return;
-
-    final imageUrl = await _uploadImage(
+    await ApiClient.uploadPostImage(
+      passionId: passionId,
       imageFile: imageFile,
-      folder: 'community/$passionId',
-    );
-
-    await _posts.add({
-      'passionId':    passionId,
-      'authorId':     user.uid,
-      'imageUrl':     imageUrl,
-      'title':        title,
-      'caption':      caption,
-      'likeCount':    0,
-      'commentCount': 0,
-      'likedBy':      [],
-      'createdAt':    FieldValue.serverTimestamp(),
-    });
-
-    await _updateStats(passionId, postsDelta: 1);
-  }
-
-  /// Like / unlike avec transaction — impossible d'aller en négatif.
-  static Future<void> toggleLike(
-    String postId,
-    bool isNowLiked,
-    String passionId,
-  ) async {
-    final uid = _me?.uid;
-    if (uid == null) return;
-
-    bool didChange = false;
-    final ref = _posts.doc(postId);
-    await _db.runTransaction((tx) async {
-      final snap    = await tx.get(ref);
-      final likedBy = List<String>.from(snap.data()?['likedBy'] ?? []);
-      final already = likedBy.contains(uid);
-
-      if (isNowLiked && !already) {
-        likedBy.add(uid);
-        tx.update(ref, {'likedBy': FieldValue.arrayUnion([uid]), 'likeCount': likedBy.length});
-        didChange = true;
-      } else if (!isNowLiked && already) {
-        likedBy.remove(uid);
-        tx.update(ref, {'likedBy': FieldValue.arrayRemove([uid]), 'likeCount': likedBy.length});
-        didChange = true;
-      }
-    });
-
-    if (didChange) {
-      await _updateStats(passionId, likesDelta: isNowLiked ? 1 : -1);
-    }
-  }
-
-  /// Supprime un post et déduit sa contribution des stats de tendance.
-  static Future<void> deletePost(String postId) async {
-    final uid = _me?.uid;
-    if (uid == null) return;
-
-    // On lit le post avant de le supprimer pour connaître ses compteurs
-    final snap      = await _posts.doc(postId).get();
-    final data      = snap.data();
-    final passionId = data?['passionId'] as String? ?? '';
-    final likes     = (data?['likeCount']    as num?)?.toInt() ?? 0;
-    final comments  = (data?['commentCount'] as num?)?.toInt() ?? 0;
-
-    await _posts.doc(postId).delete();
-
-    await _updateStats(
-      passionId,
-      postsDelta:    -1,
-      likesDelta:    -likes,
-      commentsDelta: -comments,
+      title:     title,
+      caption:   caption,
     );
   }
 
-  /// Met à jour la description et/ou l'image d'un post.
+  /// Toggle like — idempotent côté backend.
+  static Future<void> toggleLike(String postId, bool isNowLiked, String passionId) async {
+    await ApiClient.post<dynamic>(
+      '/passions/$passionId/posts/$postId/like',
+      body: {'liked': isNowLiked},
+    );
+  }
+
+  /// Supprime un post (auteur ou admin).
+  static Future<void> deletePost(String postId, {required String passionId}) async {
+    await ApiClient.delete<dynamic>('/passions/$passionId/posts/$postId');
+  }
+
+  /// Édite caption + image éventuelle.
   static Future<void> updatePost({
     required String postId,
     required String passionId,
     required String caption,
     File? newImageFile,
   }) async {
-    final uid = _me?.uid;
-    if (uid == null) return;
-
-    final Map<String, dynamic> updates = {'caption': caption};
+    // Pour le moment, le backend accepte uniquement PATCH JSON (sans image).
+    // Si l'admin change l'image, on re-upload via la route /upload qui crée
+    // un nouveau post — fonctionnellement, on patch le caption seul ici.
+    await ApiClient.patch<dynamic>(
+      '/passions/$passionId/posts/$postId',
+      body: {'caption': caption},
+    );
+    // newImageFile intentionnellement ignoré : pas d'endpoint backend pour
+    // remplacer l'image d'un post existant. À ajouter si besoin.
     if (newImageFile != null) {
-      updates['imageUrl'] = await _uploadImage(
-        imageFile: newImageFile,
-        folder: 'community/$passionId',
-      );
+      // No-op explicite — laisser un log dev pourrait être utile.
     }
-    await _posts.doc(postId).update(updates);
   }
 
-  /// Signale un post — ajoute l'UID dans reportedBy et incrémente reportCount.
-  static Future<void> reportPost(String postId) async {
-    final uid = _me?.uid;
-    if (uid == null) return;
-    final ref = _posts.doc(postId);
-    await _db.runTransaction((tx) async {
-      final snap       = await tx.get(ref);
-      final reportedBy = List<String>.from(snap.data()?['reportedBy'] ?? []);
-      if (!reportedBy.contains(uid)) {
-        tx.update(ref, {
-          'reportedBy': FieldValue.arrayUnion([uid]),
-          'reportCount': FieldValue.increment(1),
-        });
-      }
-    });
+  /// Signale un post.
+  static Future<void> reportPost(String postId, {required String passionId}) async {
+    await ApiClient.post<dynamic>('/passions/$passionId/posts/$postId/report');
   }
 
-  // ── Posts de l'utilisateur courant ───────────────────────────────────────
+  // ── Commentaires ─────────────────────────────────────────────────────────
 
-  /// Stream des posts publiés par l'utilisateur connecté, triés par date.
-  static Stream<List<CommunityPost>> streamMyPosts() {
-    final uid = _me?.uid;
-    if (uid == null) return const Stream.empty();
+  static Future<List<CommunityComment>> fetchComments(
+    String postId, {
+    required String passionId,
+  }) async {
+    final raw = await ApiClient.get<List<dynamic>>(
+      '/passions/$passionId/posts/$postId/comments',
+      auth: false,
+    );
+    final comments = raw
+        .whereType<Map>()
+        .map((e) => PostComment.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
 
-    return _posts
-        .where('authorId', isEqualTo: uid)
-        .snapshots()
-        .asyncMap((snap) async {
-          final u    = await _getUser(uid);
-          final name = _name(u);
-          final posts = snap.docs.map((doc) => CommunityPost.fromDoc(
-            snap:           doc,
-            currentUid:     uid,
-            authorName:     name,
-            authorInitials: _initials(name),
-            authorColor:    _color(u, uid),
-          )).toList();
-          // Tri côté client — évite l'index composite Firestore (authorId + createdAt)
-          posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return posts;
-        });
+    await _prefetchUsers(comments.map((c) => c.authorId));
+
+    final out = <CommunityComment>[];
+    for (final c in comments) {
+      final u    = await _getUser(c.authorId);
+      final name = _name(u);
+      out.add(CommunityComment(
+        id:             c.id,
+        authorId:       c.authorId,
+        authorName:     name,
+        authorInitials: _initials(name),
+        authorColor:    _color(u, c.authorId),
+        text:           c.text,
+        createdAt:      c.createdAt ?? DateTime.now(),
+      ));
+    }
+    return out;
   }
 
-  // ── Commentaires ──────────────────────────────────────────────────────────
-
-  /// Stream des commentaires. Infos auteur résolues depuis users.
-  static Stream<List<CommunityComment>> streamComments(String postId) {
-    return _posts
-        .doc(postId)
-        .collection('comments')
-        .orderBy('createdAt')
-        .snapshots()
-        .asyncMap((snap) async {
-          await _prefetchUsers(
-              snap.docs.map((d) => d.data()['authorId'] as String? ?? ''));
-
-          return Future.wait(snap.docs.map((doc) async {
-            final authorId = doc.data()['authorId'] as String? ?? '';
-            final u        = await _getUser(authorId);
-            final name     = _name(u);
-            return CommunityComment.fromDoc(
-              snap:           doc,
-              authorName:     name,
-              authorInitials: _initials(name),
-              authorColor:    _color(u, authorId),
-            );
-          }));
-        });
+  static Future<void> addComment(
+    String postId,
+    String text, {
+    required String passionId,
+  }) async {
+    if (text.trim().isEmpty) return;
+    await ApiClient.post<dynamic>(
+      '/passions/$passionId/posts/$postId/comments',
+      body: {'text': text.trim()},
+    );
   }
 
-  /// Ajoute un commentaire — stocke seulement authorId.
-  static Future<void> addComment(String postId, String text, String passionId) async {
-    final user = _me;
-    if (user == null || text.trim().isEmpty) return;
+  // ── Helpers internes ─────────────────────────────────────────────────────
 
-    final batch      = _db.batch();
-    final commentRef = _posts.doc(postId).collection('comments').doc();
+  static Future<List<CommunityPost>> _hydratePosts(List<Post> posts) async {
+    final uid = _myUid ?? '';
+    await _prefetchUsers(posts.map((p) => p.authorId));
 
-    batch.set(commentRef, {
-      'authorId':  user.uid,
-      'text':      text.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    batch.update(_posts.doc(postId), {
-      'commentCount': FieldValue.increment(1),
-    });
-
-    await batch.commit();
-
-    await _updateStats(passionId, commentsDelta: 1);
+    final out = <CommunityPost>[];
+    for (final p in posts) {
+      final u    = await _getUser(p.authorId);
+      final name = _name(u);
+      out.add(CommunityPost(
+        id:             p.id,
+        passionId:      p.passionId,
+        authorId:       p.authorId,
+        authorName:     name,
+        authorInitials: _initials(name),
+        authorColor:    _color(u, p.authorId),
+        imageUrl:       p.imageUrl,
+        title:          p.title,
+        caption:        p.caption,
+        likeCount:      p.likeCount,
+        commentCount:   p.commentCount,
+        likedBy:        p.likedBy,
+        createdAt:      p.createdAt ?? DateTime.now(),
+        isLiked:        p.likedBy.contains(uid),
+        reportCount:    p.reportCount,
+        reportedBy:     p.reportedBy,
+        isReported:     p.reportedBy.contains(uid),
+      ));
+    }
+    return out;
   }
 }
 
-// Firestore rules à ajouter :
-// allow update: if request.auth != null && (
-//   request.auth.uid == resource.data.authorId ||
-//   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportedBy', 'reportCount'])
-// );
+/// Helper interne — sert à conserver l'ordre du feed pendant qu'on hydrate
+/// les posts app en parallèle (résolution auteurs). Une seule des 2 props est
+/// non-null à la fois.
+class _PendingItem {
+  final Post?       appPost;
+  final RedditPost? redditPost;
+  _PendingItem._(this.appPost, this.redditPost);
+  factory _PendingItem.app(Post p)       => _PendingItem._(p, null);
+  factory _PendingItem.reddit(RedditPost p) => _PendingItem._(null, p);
+}

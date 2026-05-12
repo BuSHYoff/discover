@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:discover/core/models/passion.dart';
-import 'package:discover/features/home/services/youtube_service.dart';
 import 'package:discover/features/home/screens/shorts_player_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,9 +18,9 @@ class ShortsRow extends StatefulWidget {
 }
 
 class _ShortsRowState extends State<ShortsRow> {
-  List<YoutubeShort> _shorts = [];
-  bool               _loading = true;
-  bool               _hasError = false;
+  List<AIVideo> _shorts = const [];
+  bool          _loading = true;
+  bool          _hasError = false;
 
   // Largeur fixe de chaque card
   static const double _cardWidth  = 112.0;
@@ -37,11 +36,13 @@ class _ShortsRowState extends State<ShortsRow> {
 
   Future<void> _fetch() async {
     try {
-      final shorts = await YoutubeService.fetchShorts(
-        widget.passion.name,
-        widget.passion.id,
-      );
-      if (mounted) setState(() { _shorts = shorts; _loading = false; });
+      final content = await AIContentProvider.getFor(widget.passion.id);
+      if (!mounted) return;
+      setState(() {
+        _shorts   = content?.shorts ?? const [];
+        _loading  = false;
+        _hasError = false;
+      });
     } catch (e) {
       debugPrint('[ShortsRow] erreur: $e');
       if (mounted) setState(() { _loading = false; _hasError = true; });
@@ -128,7 +129,7 @@ class _ShortsRowState extends State<ShortsRow> {
 // ── Card d'un Short ──────────────────────────────────────────────────────────
 
 class _ShortCard extends StatelessWidget {
-  final YoutubeShort short;
+  final AIVideo short;
   final Color        primary;
   final VoidCallback onTap;
 
@@ -161,7 +162,7 @@ class _ShortCard extends StatelessWidget {
                   width: _cardWidth,
                   height: thumbHeight,
                   child: CachedNetworkImage(
-                    imageUrl: short.thumbnailUrl,
+                    imageUrl: short.effectiveThumbnail,
                     fit: BoxFit.cover,
                     placeholder: (_, __) => Container(
                         color: Colors.black.withValues(alpha: 0.06)),
@@ -231,7 +232,7 @@ class _ShortCard extends StatelessWidget {
 
             // ── Chaîne ───────────────────────────────────────────────────────
             Text(
-              short.channelName,
+              short.channel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.firaSansCondensed(

@@ -1,83 +1,47 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:discover/core/api/api_client.dart';
 import 'package:discover/core/models/passion.dart';
+import 'package:discover/core/models/trending.dart';
 
-// ─── Modèle de tendance ───────────────────────────────────────────────────────
+// Re-export pour ne pas casser les écrans qui font `import trending_service.dart`
+// et utilisent `TrendItem` ou `WeeklyPassion`.
+export 'package:discover/core/models/trending.dart' show TrendItem, WeeklyPassion, PassionStats;
 
-class TrendItem {
-  final String passionId;
-  final int    postsCount;
-  final int    likesCount;
-  final int    commentsCount;
-  final double trendScore;
-
-  const TrendItem({
-    required this.passionId,
-    required this.postsCount,
-    required this.likesCount,
-    required this.commentsCount,
-    required this.trendScore,
-  });
-
-  factory TrendItem.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return TrendItem(
-      passionId:     doc.id,
-      postsCount:    (d['postsCount']    as num?)?.toInt() ?? 0,
-      likesCount:    (d['likesCount']    as num?)?.toInt() ?? 0,
-      commentsCount: (d['commentsCount'] as num?)?.toInt() ?? 0,
-      trendScore:    (d['trendScore']    as num?)?.toDouble() ?? 0.0,
-    );
-  }
-
-  /// Passion associée (null si l'ID n'est plus dans le catalogue).
-  Passion? get passion => PassionRepository.instance.passions
-      .where((p) => p.id == passionId)
-      .firstOrNull;
-}
-
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// TRENDING SERVICE
+// `GET /trending` côté backend renvoie déjà les 5 passions triées par
+// trendScore, avec fallback "fillers" si moins de 5 passions ont des stats.
+// On expose la même API qu'avant (`fetchTrends`) pour les écrans.
+// ─────────────────────────────────────────────────────────────────────────────
 
 class TrendingService {
-  static final _db = FirebaseFirestore.instance;
+  TrendingService._();
 
-  /// Retourne toujours exactement [limit] items.
-  /// Ceux qui ont de l'activité apparaissent en premier (trendScore desc).
-  /// Les slots restants sont complétés avec des passions du catalogue (score 0).
+  /// Récupère le top des passions tendance.
+  /// Le `limit` est ignoré côté backend (fixe à 5) — on tronque si besoin.
   static Future<List<TrendItem>> fetchTrends({int limit = 5}) async {
-    // ── 1. Essaie de charger les stats depuis Firestore ──────────────────────
-    List<TrendItem> fromFirestore = [];
     try {
-      final snap = await _db
-          .collection('passions_stats')
-          .orderBy('trendScore', descending: true)
-          .limit(limit)
-          .get();
-
-      fromFirestore = snap.docs
-          .map(TrendItem.fromDoc)
-          .where((t) => t.passion != null)
+      final raw = await ApiClient.get<List<dynamic>>('/trending', auth: false);
+      final items = raw
+          .whereType<Map>()
+          .map((e) => Passion.fromJson(Map<String, dynamic>.from(e)))
+          .map((p) => TrendItem(passion: p))
           .toList();
+      return items.length > limit ? items.sublist(0, limit) : items;
     } catch (_) {
-      // Collection vide ou index manquant → on continue avec la liste vide
+      return const [];
     }
+  }
 
-    // ── 2. Complète jusqu'à [limit] avec des passions du catalogue ───────────
-    final seenIds = fromFirestore.map((t) => t.passionId).toSet();
-    final catalog = PassionRepository.instance.passions;
-
-    for (final passion in catalog) {
-      if (fromFirestore.length >= limit) break;
-      if (seenIds.contains(passion.id)) continue;
-      fromFirestore.add(TrendItem(
-        passionId:     passion.id,
-        postsCount:    0,
-        likesCount:    0,
-        commentsCount: 0,
-        trendScore:    0,
-      ));
-      seenIds.add(passion.id);
+  /// Lit la passion de la semaine. Renvoie null si pas configurée ou erreur.
+  static Future<WeeklyPassion?> fetchWeeklyPassion() async {
+    try {
+      final json = await ApiClient.get<Map<String, dynamic>>(
+        '/trending/weekly-passion',
+        auth: false,
+      );
+      return WeeklyPassion.fromJson(json);
+    } catch (_) {
+      return null;
     }
-
-    return fromFirestore;
   }
 }

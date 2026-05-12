@@ -75,7 +75,7 @@ class _FeedViewState extends State<FeedView> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              CommunityService.reportPost(post.id);
+              CommunityService.reportPost(post.id, passionId: post.passionId);
               setState(() => post.isReported = true);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -122,7 +122,7 @@ class _FeedViewState extends State<FeedView> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              CommunityService.deletePost(post.id);
+              CommunityService.deletePost(post.id, passionId: post.passionId);
             },
             child: Text('Supprimer',
                 style: GoogleFonts.firaSansCondensed(
