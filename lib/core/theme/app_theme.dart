@@ -74,8 +74,8 @@ class ProfileTheme {
 class AppTheme {
   AppTheme._();
 
-  /// Thème statique par défaut (vert)
-  static ThemeData get theme => fromHex('#2D5A3D');
+  /// Thème statique par défaut (rouge doux — peut être surchargé par ProfileData)
+  static ThemeData get theme => fromHex('#CC6666');
 
   /// Thème généré depuis la couleur de profil choisie
   static ThemeData fromHex(String hex) {

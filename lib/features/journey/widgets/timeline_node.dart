@@ -78,10 +78,14 @@ class _TimelineNodeState extends State<TimelineNode>
   bool get _isCurrent     => widget.state == TimelineNodeState.current;
   bool get _isLocked      => widget.state == TimelineNodeState.locked
                           || widget.state == TimelineNodeState.finalLocked;
+  /// Tous les états cliquables — y compris `locked` et `finalLocked` pour
+  /// qu'un tap déclenche le bottom sheet d'information sur ce qui débloque
+  /// l'étape (cf. `_showLockedInfoSheet` côté JourneyScreen).
   bool get _isInteractive => widget.state == TimelineNodeState.current
                           || widget.state == TimelineNodeState.completed
                           || widget.state == TimelineNodeState.finalUnlocked
-                          || widget.state == TimelineNodeState.locked;
+                          || widget.state == TimelineNodeState.locked
+                          || widget.state == TimelineNodeState.finalLocked;
 
   /// Affiche le GIF reward.gif (trophée animé) uniquement sur le bouton final débloqué.
   /// Matériel et Jours conservent leurs icônes Material classiques.

@@ -2,15 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:discover/core/models/app_user.dart';
 import 'package:discover/core/models/passion.dart';
+import 'package:discover/core/services/streak_service.dart';
 import 'package:discover/core/theme/app_theme.dart';
 import 'package:discover/features/journey/widgets/journey_progress.dart';
 import 'package:discover/features/journey/widgets/timeline_path_painter.dart';
 import 'package:discover/features/journey/widgets/timeline_node.dart';
 import 'package:discover/features/journey/widgets/timeline_video_card.dart';
 import 'package:discover/features/journey/widgets/step_sheets.dart';
-import 'package:discover/features/journey/widgets/share_step.dart';
 import 'package:discover/features/journey/widgets/confetti_overlay.dart';
+import 'package:discover/features/journey/widgets/streak_burst.dart';
+import 'package:discover/features/journey/screens/completion_screen.dart';
 import 'package:discover/features/journey/screens/daily_stepper_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,6 +40,11 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   Timer? _ticker; // pour refresh des compteurs "dans Xh"
 
+  /// Streak actuel — chargé depuis StreakService au mount.
+  /// Le service garde un cache de session, donc revenir sur l'écran n'entraîne
+  /// pas de nouvel appel réseau.
+  UserStreak? _streak;
+
   // ── Layout constants ──────────────────────────────────────────────────────
   static const double _stepRowHeight  = 132;
   static const double _videoRowHeight = 160;
@@ -54,9 +62,326 @@ class _JourneyScreenState extends State<JourneyScreen> {
   void initState() {
     super.initState();
     _loadAIContent();
+    _loadStreak();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadStreak() async {
+    final s = await StreakService.fetch();
+    if (mounted) setState(() => _streak = s);
+  }
+
+  /// Tick le streak après une complétion de jour journalier.
+  /// Si le count a augmenté → affiche l'overlay festif.
+  /// Backend dédup par date donc safe d'appeler même si déjà tické aujourd'hui.
+  Future<void> _tickStreakAfterDailyCompletion() async {
+    final before = _streak?.count ?? 0;
+    final after  = await StreakService.tick();
+    if (!mounted) return;
+    setState(() => _streak = after);
+    if (after.count > before) {
+      // Petit délai pour laisser le confetti respirer avant le burst
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      await StreakBurst.show(context, after.count);
+    }
+  }
+
+  /// Bottom sheet d'information sur la streak, affiché au tap sur la flamme
+  /// du header. Explique la règle de maintien : pratiquer chaque jour.
+  void _showStreakInfoSheet(int count) {
+    HapticFeedback.selectionClick();
+    final primary = Theme.of(context).colorScheme.primary;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                // GIF + count
+                SizedBox(
+                  width: 92, height: 92,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Image.asset('assets/images/streak.gif',
+                          width: 92, height: 92, gaplessPlayback: true),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 30),
+                        child: Text('$count',
+                            style: GoogleFonts.firaSansCondensed(
+                              fontSize: 38, fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            )),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  count > 1
+                      ? '$count jours d\'affilée'
+                      : 'Tu démarres ta streak',
+                  style: GoogleFonts.firaSansCondensed(
+                      fontSize: 20, fontWeight: FontWeight.w800,
+                      color: AppColors.ink),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Pratique au moins un jour de parcours par jour pour faire grandir ta streak. '
+                  'Si tu passes une journée sans rien compléter, elle repart à zéro.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.firaSansCondensed(
+                      fontSize: 14, color: AppColors.inkSoft, height: 1.5),
+                ),
+                const SizedBox(height: 22),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('J\'ai compris',
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet d'information quand l'utilisateur tape sur un nœud verrouillé.
+  /// Le texte est dynamique selon ce qui bloque :
+  ///   - Jour 1     → "Tu dois d'abord valider le matériel"
+  ///   - Jour N>1   → "Tu dois compléter le jour N-1 (attente 24h après)"
+  ///   - Final      → "Tu dois compléter tous les jours du parcours"
+  void _showLockedInfoSheet(int logicalIdx) {
+    final isFinal = logicalIdx == _totalSteps - 1;
+    final primary = Theme.of(context).colorScheme.primary;
+
+    // Détermine ce qui bloque + le message à afficher
+    final String title;
+    final String body;
+
+    if (logicalIdx == 1) {
+      // Jour 1 : doit valider le matériel
+      title = 'Matériel à valider';
+      body  = 'Pour commencer le jour 1, tu dois d\'abord valider l\'étape '
+              'matériel — coche tous les éléments puis appuie sur '
+              '"Valider l\'étape".';
+    } else if (isFinal) {
+      title = 'Parcours à terminer';
+      body  = 'Tu dois compléter tous les jours du parcours avant de '
+              'pouvoir débloquer cette étape finale.';
+    } else {
+      // Jour N>1 : doit compléter jour N-1, ET potentiellement attendre 24h
+      final dayIdx        = logicalIdx - 1;
+      final prevDayNumber = dayIdx;          // jour N-1 affiché
+      final remainingMs   = _prog.dailyRemainingMs(dayIdx);
+      final hours         = remainingMs > 0 ? (remainingMs / 3600000).ceil() : 0;
+
+      if (hours > 0) {
+        title = 'Reviens dans ${hours}h';
+        body  = 'Le jour ${dayIdx + 1} se débloquera ${hours}h après avoir '
+                'terminé le jour $prevDayNumber. Profite de la pause pour '
+                'pratiquer ce que tu as appris !';
+      } else {
+        title = 'Jour précédent à terminer';
+        body  = 'Tu dois d\'abord compléter le jour $prevDayNumber avant '
+                'de pouvoir accéder au jour ${dayIdx + 1}.';
+      }
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                // Cadenas dans un cercle primary clair
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.lock_rounded, color: primary, size: 30),
+                ),
+                const SizedBox(height: 14),
+                Text(title,
+                    style: GoogleFonts.firaSansCondensed(
+                        fontSize: 20, fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+                const SizedBox(height: 12),
+                Text(body,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.firaSansCondensed(
+                        fontSize: 14, color: AppColors.inkSoft, height: 1.5)),
+                const SizedBox(height: 22),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('J\'ai compris',
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet pour les vidéos / tips verrouillés.
+  /// Même style visuel que la sheet des nœuds verrouillés ; texte adapté
+  /// au type d'élément.
+  void _showLockedItemSheet({required _LockedItemKind kind}) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    final String title;
+    final String body;
+    if (kind == _LockedItemKind.video) {
+      title = 'Vidéo verrouillée';
+      body  = 'Cette vidéo se débloquera quand tu auras atteint l\'étape '
+              'correspondante. Continue ton parcours pour y accéder !';
+    } else {
+      title = 'Astuce verrouillée';
+      body  = 'Cette astuce se débloquera quand tu auras atteint l\'étape '
+              'correspondante. Continue ton parcours pour la découvrir !';
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.lock_rounded, color: primary, size: 30),
+                ),
+                const SizedBox(height: 14),
+                Text(title,
+                    style: GoogleFonts.firaSansCondensed(
+                        fontSize: 20, fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+                const SizedBox(height: 12),
+                Text(body,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.firaSansCondensed(
+                        fontSize: 14, color: AppColors.inkSoft, height: 1.5)),
+                const SizedBox(height: 22),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('J\'ai compris',
+                        style: GoogleFonts.firaSansCondensed(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -114,7 +439,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
   /// Renvoie pour chaque index logique l'état de nœud.
   /// Règle d'accès :
   ///   - Matériel (0) : toujours accessible
-  ///   - Jour 1 (1)   : toujours accessible (pas de dépendance matériel)
+  ///   - Jour 1 (1)   : verrouillé jusqu'à validation du matériel (cadenas)
   ///   - Jour 2+ (≥2) : verrouillé jusqu'au timer 24h après le jour précédent
   ///   - Final        : verrouillé jusqu'à ce que tous les jours soient faits
   TimelineNodeState _stateFor(int logicalIdx) {
@@ -133,10 +458,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
     }
 
     // Matériel (logical 0)
+    final matAllChecked = _prog.materialsChecked.isNotEmpty &&
+        _prog.materialsChecked.every((v) => v);
     if (logicalIdx == 0) {
-      final allMat = _prog.materialsChecked.isNotEmpty &&
-          _prog.materialsChecked.every((v) => v);
-      return allMat ? TimelineNodeState.completed : TimelineNodeState.current;
+      return matAllChecked ? TimelineNodeState.completed : TimelineNodeState.current;
     }
 
     // Jours (logical 1..N-2)
@@ -145,8 +470,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
         _prog.thisWeekChecked[dayIdx];
     if (isDone) return TimelineNodeState.completed;
 
-    // Jour 1 toujours accessible
-    if (dayIdx == 0) return TimelineNodeState.current;
+    // Jour 1 : verrouillé tant que le matériel n'a pas été validé entièrement
+    if (dayIdx == 0) {
+      return matAllChecked ? TimelineNodeState.current : TimelineNodeState.locked;
+    }
 
     // Jour 2+ : accessible si timer écoulé
     if (_prog.isDailyUnlocked(dayIdx)) return TimelineNodeState.current;
@@ -252,10 +579,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
     final state = _stateFor(logicalIdx);
 
-    // Étape verrouillée → on ne fait rien (le système XP/skip a été supprimé,
-    // l'utilisateur doit attendre le déblocage temporel automatique).
+    // Étape verrouillée → vibration + bottom sheet explicative.
     if (state == TimelineNodeState.locked || state == TimelineNodeState.finalLocked) {
       HapticFeedback.heavyImpact();
+      _showLockedInfoSheet(logicalIdx);
       return;
     }
 
@@ -272,7 +599,8 @@ class _JourneyScreenState extends State<JourneyScreen> {
               thisWeek:  _prog.thisWeekChecked,
               materials: _prog.materialsChecked,
             );
-            if (v && mounted) ConfettiOverlay.show(context);
+            // Pas de confettis par item — uniquement à la validation finale
+            // ("Valider l'étape") pour ne pas saturer l'utilisateur.
             if (mounted) setState(() {});
           }
         },
@@ -293,33 +621,17 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
     // ── Étape finale (Partager) ──
     if (logicalIdx == _totalSteps - 1) {
-      // Pour V1 on réutilise le ShareStep dans une bottom sheet
-      await showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          child: Container(
-            color: AppColors.cream,
-            constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.85),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(24, 20, 24,
-                  MediaQuery.of(context).padding.bottom + 24),
-              child: ShareStep(passion: widget.passion),
-            ),
-          ),
-        ),
-      );
+      // Marque comme finalisée AVANT la navigation, pour que la timeline
+      // soit déjà à jour quand l'utilisateur revient en arrière.
+      // Le confetti s'affichera dans la CompletionScreen elle-même.
+      if (!_prog.completed) _prog.markCompleted();
+      if (mounted) setState(() {});
 
-      // Si pas encore complétée, on marque (sans XP/badges, supprimés).
-      if (!_prog.completed) {
-        _prog.markCompleted();
-        if (!mounted) return;
-        ConfettiOverlay.show(context, duration: const Duration(seconds: 4));
-        if (mounted) setState(() {});
-      }
+      await Navigator.of(context).push(MaterialPageRoute(
+        fullscreenDialog: true, // animation slide-up depuis le bas
+        builder: (_) => CompletionScreen(passion: widget.passion),
+      ));
+      if (mounted) setState(() {});
       return;
     }
 
@@ -331,6 +643,11 @@ class _JourneyScreenState extends State<JourneyScreen> {
     final subtaskCounts = c.steps.map((s) => s.subtasks.length).toList();
     _prog.initSubtasks(subtaskCounts);
 
+    // Capture pour détecter si un jour est passé de "non coché" à "coché"
+    // au retour du DailyStepperScreen → si oui, on tick le streak.
+    final wasDayChecked = dailyIdx < _prog.thisWeekChecked.length
+        && _prog.thisWeekChecked[dailyIdx];
+
     await Navigator.of(context).push(MaterialPageRoute(
       fullscreenDialog: true,
       builder: (_) => DailyStepperScreen(
@@ -341,7 +658,16 @@ class _JourneyScreenState extends State<JourneyScreen> {
       ),
     ));
 
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+
+    final isDayCheckedNow = dailyIdx < _prog.thisWeekChecked.length
+        && _prog.thisWeekChecked[dailyIdx];
+    if (!wasDayChecked && isDayCheckedNow) {
+      // Le user a complété ce jour pendant la session → tick + burst si nouveau jour.
+      // Fire-and-forget : on ne bloque pas le retour visuel.
+      unawaited(_tickStreakAfterDailyCompletion());
+    }
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -429,6 +755,27 @@ class _JourneyScreenState extends State<JourneyScreen> {
                         fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
+              // Streak — GIF flamme + nombre. Caché quand 0 ou pas encore chargé.
+              // Tap → popup d'info explicative.
+              if ((_streak?.count ?? 0) > 0) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _showStreakInfoSheet(_streak!.count),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset('assets/images/streak.gif',
+                          width: 22, height: 22, gaplessPlayback: true),
+                      const SizedBox(width: 2),
+                      Text('${_streak!.count}',
+                          style: GoogleFonts.firaSansCondensed(
+                              fontSize: 14, fontWeight: FontWeight.w700,
+                              color: const Color(0xFFFF5722))),
+                    ],
+                  ),
+                ),
+              ],
             ]),
           ]),
         ),
@@ -483,11 +830,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
       final double nodeOff = (isMaterial || isFinal) ? 0 : off;
       final String? timerText = _timerTextFor(item.index, state);
 
-      // Un jour verrouillé n'est cliquable QUE s'il a un timer actif
-      // (= le jour précédent est terminé). Sinon, le cadenas est inerte.
-      final bool tappable = state == TimelineNodeState.locked
-          ? timerText != null
-          : state != TimelineNodeState.finalLocked;
+      // Tous les états sont cliquables — même verrouillés : un tap sur un
+      // cadenas ou sur le trophée verrouillé ouvre un bottom sheet d'info
+      // qui explique ce qui débloque l'étape (cf. _showLockedInfoSheet).
+      const bool tappable = true;
 
       return Positioned(
         top: item.yTop,
@@ -507,8 +853,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
       );
     } else if (item.kind == _ItemKind.video) {
       // Vidéo — alterner gauche/droite selon le slot
-      final isLeft = item.index % 2 == 0;
-      final video  = _topVideos[item.index];
+      final isLeft   = item.index % 2 == 0;
+      final video    = _topVideos[item.index];
+      final stepPos  = _videoSlotPositions[item.index];
+      final locked   = _isPositionLocked(stepPos);
       return Positioned(
         top: item.yTop,
         height: _videoRowHeight,
@@ -516,13 +864,19 @@ class _JourneyScreenState extends State<JourneyScreen> {
         right: isLeft ? centerX + 30 : 18,
         child: Align(
           alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
-          child: TimelineVideoCard(video: video),
+          child: TimelineVideoCard(
+            video:       video,
+            locked:      locked,
+            onLockedTap: () => _showLockedItemSheet(kind: _LockedItemKind.video),
+          ),
         ),
       );
     } else {
       // Tip — bouton icone seul, côté opposé aux vidéos
-      final isLeft = item.index % 2 != 0;
-      final tipText = _tips[item.index];
+      final isLeft   = item.index % 2 != 0;
+      final tipText  = _tips[item.index];
+      final stepPos  = _tipSlotPositions[item.index];
+      final locked   = _isPositionLocked(stepPos);
       return Positioned(
         top: item.yTop,
         height: _videoRowHeight,
@@ -530,10 +884,21 @@ class _JourneyScreenState extends State<JourneyScreen> {
         right: isLeft ? centerX + 30 : 30,
         child: Align(
           alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
-          child: _TipButton(tip: tipText),
+          child: _TipButton(
+            tip:         tipText,
+            locked:      locked,
+            onLockedTap: () => _showLockedItemSheet(kind: _LockedItemKind.tip),
+          ),
         ),
       );
     }
+  }
+
+  /// Une vidéo / tip est verrouillé tant que l'étape juste avant n'a pas été
+  /// atteinte (i.e. cette étape est encore `locked` ou `finalLocked`).
+  bool _isPositionLocked(int stepIdx) {
+    final s = _stateFor(stepIdx);
+    return s == TimelineNodeState.locked || s == TimelineNodeState.finalLocked;
   }
 
   String? _timerTextFor(int idx, TimelineNodeState state) {
@@ -556,6 +921,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
 // ── Internal data ──────────────────────────────────────────────────────────────
 
 enum _ItemKind { step, video, tip }
+enum _LockedItemKind { video, tip }
 
 class _RenderItem {
   final _ItemKind kind;
@@ -571,8 +937,14 @@ class _RenderItem {
 // ── Tip button widget — icone seule, popup au tap ───────────────────────────────
 
 class _TipButton extends StatelessWidget {
-  final String tip;
-  const _TipButton({required this.tip});
+  final String         tip;
+  final bool           locked;
+  final VoidCallback?  onLockedTap;
+  const _TipButton({
+    required this.tip,
+    this.locked = false,
+    this.onLockedTap,
+  });
 
   void _showTip(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
@@ -634,13 +1006,21 @@ class _TipButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showTip(context),
-      child: SizedBox(
-        width: 100, height: 100,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Image.asset('assets/images/tips.gif',
-              gaplessPlayback: true, fit: BoxFit.contain),
+      onTap: locked
+          ? () {
+              HapticFeedback.heavyImpact();
+              onLockedTap?.call();
+            }
+          : () => _showTip(context),
+      child: Opacity(
+        opacity: locked ? 0.30 : 1.0,
+        child: SizedBox(
+          width: 100, height: 100,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.asset('assets/images/tips.gif',
+                gaplessPlayback: true, fit: BoxFit.contain),
+          ),
         ),
       ),
     );
