@@ -86,11 +86,19 @@ class JourneyProgress extends ChangeNotifier {
   ];
 
   // ── Progression globale ───────────────────────────────────────────────────
+  //
+  // Pondération équitable entre les 3 grandes phases : matériel, jours,
+  // partage final. Chacune compte pour 1/3 indépendamment du nombre d'items.
+  //
+  // Sans cette pondération, le matériel (souvent 5+ items) gonflait
+  // artificiellement le pourcentage : compléter matériel + 1 jour sur 7
+  // donnait ~46% alors que l'utilisateur n'a fait qu'un septième du cœur
+  // du parcours.
   double get globalPercent {
-    final done  = materialsDone + thisWeekDone + (currentStep >= 2 ? 1 : 0);
-    final total = materialsTotal + thisWeekTotal + 1;
-    if (total == 0) return 0;
-    return (done / total).clamp(0.0, 1.0);
+    final matFrac   = materialsTotal == 0 ? 0.0 : materialsDone / materialsTotal;
+    final weekFrac  = thisWeekTotal  == 0 ? 0.0 : thisWeekDone  / thisWeekTotal;
+    final finalFrac = completed ? 1.0 : 0.0;
+    return ((matFrac + weekFrac + finalFrac) / 3).clamp(0.0, 1.0);
   }
 
   int get globalPercentInt => (globalPercent * 100).round();
@@ -415,11 +423,19 @@ class JourneyProgress extends ChangeNotifier {
   }
 
   Future<void> reset() async {
-    currentStep         = -1;
-    thisWeekDone    = 0; thisWeekTotal   = 0;
-    materialsDone        = 0; materialsTotal       = 0;
-    thisWeekChecked = [];
-    materialsChecked     = [];
+    currentStep      = -1;
+    thisWeekDone     = 0; thisWeekTotal     = 0;
+    materialsDone    = 0; materialsTotal    = 0;
+    thisWeekChecked  = [];
+    materialsChecked = [];
+    // Bug fix : ces champs n'étaient PAS reset auparavant. Conséquence :
+    // `completedAtMs` restait set → `_prog.completed` retournait true →
+    // l'étape finale apparaissait toujours débloquée après un "Recommencer".
+    dailyUnlocks     = [];
+    videosWatched    = [false, false, false];
+    completedAtMs    = null;
+    subtasksChecked  = [];
+    focusCompleted   = [];
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefKey);
     notifyListeners();

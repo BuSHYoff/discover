@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Affiche un GIF de confettis plein écran (non-bloquant) pendant ~2.4s.
-/// À appeler dès qu'une récompense (XP, étape validée, jour complété…) est donnée.
+/// À appeler dès qu'une récompense (étape validée, jour complété…) est donnée.
 class ConfettiOverlay {
   /// Durée par défaut de l'animation à l'écran.
   static const Duration _defaultDuration = Duration(milliseconds: 2400);

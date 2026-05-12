@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:discover/core/models/passion.dart';
+import 'package:discover/features/home/widgets/glisse_hint.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHORTS PLAYER SCREEN — TikTok-style vertical PageView
@@ -105,20 +106,30 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
                 },
               ),
 
-              // ── Bouton fermer ─────────────────────────────────────────────
+              // ── Bouton fermer (fond blanc, croix dans la couleur du thème) ─
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      width: 36, height: 36,
+                      width: 48, height: 48,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: Colors.white.withValues(alpha: 0.9),
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.20),
+                            blurRadius: 12,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          color: Colors.white, size: 20),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 26,
+                      ),
                     ),
                   ),
                 ),
@@ -185,18 +196,18 @@ class _ShortPage extends StatelessWidget {
               errorWidget: (_, __, ___) => Container(color: Colors.black),
             ),
 
-          // ── Dégradé bas ────────────────────────────────────────────────────
+          // ── Dégradé bas (élargi pour englober le hint en bas) ──────────────
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
-              height: 180,
+              height: 240,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.85),
+                    Colors.black.withValues(alpha: 0.90),
                   ],
                 ),
               ),
@@ -209,47 +220,49 @@ class _ShortPage extends StatelessWidget {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 72, 24),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      short.channel,
-                      style: GoogleFonts.firaSansCondensed(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                    // Bloc texte aligné gauche
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            short.channel,
+                            style: GoogleFonts.firaSansCondensed(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            short.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.firaSansCondensed(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.95),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      short.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.firaSansCondensed(
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.9),
-                        height: 1.3,
-                      ),
+                    const SizedBox(height: 14),
+                    // "Glisse pour découvrir" tout en bas
+                    const GlisseHint(
+                      textSize: 12,
+                      iconSize: 22,
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-
-          // ── Chevrons swipe ─────────────────────────────────────────────────
-          Positioned(
-            right: 12, bottom: 80,
-            child: Column(
-              children: [
-                Icon(Icons.keyboard_arrow_up_rounded,
-                    color: Colors.white.withValues(alpha: 0.5), size: 28),
-                const SizedBox(height: 4),
-                Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Colors.white.withValues(alpha: 0.5), size: 28),
-              ],
             ),
           ),
         ],

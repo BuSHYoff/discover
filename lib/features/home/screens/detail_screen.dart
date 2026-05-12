@@ -542,10 +542,7 @@ class _DetailScreenState extends State<DetailScreen>
                     FadeInUp(
                       duration: const Duration(milliseconds: 300),
                       delay: const Duration(milliseconds: 20),
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: ShortsRow(passion: passion),
-                      ),
+                      child: ShortsRow(passion: passion),
                     ),
 
                     // ── AUTOUR DE MOI + COMMUNAUTÉ (50/50) ──────────────

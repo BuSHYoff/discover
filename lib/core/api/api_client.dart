@@ -129,16 +129,19 @@ class ApiClient {
     bool auth = true,
   }) async {
     final uri = _buildUri(path, query);
+
+    // On ne déclare un Content-Type qu'en présence d'un body : Fastify rejette
+    // un body vide associé à `application/json`. Pour les DELETE / POST sans
+    // body, on omet le header → le serveur traite comme un payload vide.
+    final encoded = body == null ? null : jsonEncode(body);
     final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept':       'application/json',
+      'Accept': 'application/json',
+      if (encoded != null) 'Content-Type': 'application/json',
     };
     if (auth) {
       final token = await _idToken();
       if (token != null) headers['Authorization'] = 'Bearer $token';
     }
-
-    final encoded = body == null ? null : jsonEncode(body);
 
     final http.Response res;
     switch (method) {

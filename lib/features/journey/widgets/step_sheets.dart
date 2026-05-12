@@ -15,8 +15,8 @@ class MaterialsSheet extends StatefulWidget {
   final String                     passionName;
   final List<bool>                 initialChecked;
   final Future<void> Function(int idx, bool value) onToggleItem;
-  /// Appelé quand l'user valide l'étape complète. Doit retourner les XP gagnés
-  /// pour la complétion finale (ex: bonus). Le sheet se ferme automatiquement.
+  /// Appelé quand l'user valide l'étape complète. Le sheet se ferme automatiquement.
+  /// Retourne un int (historique, non utilisé) — laissé pour compat de signature.
   final Future<int> Function() onValidate;
 
   const MaterialsSheet({
@@ -88,8 +88,7 @@ class _MaterialsSheetState extends State<MaterialsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 18, color: const Color(0xFF3B82F6)),
+                Icon(Icons.info_outline_rounded, size: 18, color: primary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(name,
                     style: GoogleFonts.firaSansCondensed(
@@ -167,7 +166,7 @@ class _MaterialsSheetState extends State<MaterialsSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Matériel requis',
+                          Text('Matériel recommandé',
                               style: GoogleFonts.firaSansCondensed(
                                   fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.ink)),
                           Text(
@@ -249,37 +248,23 @@ class _MaterialsSheetState extends State<MaterialsSheet> {
                                   )),
                             ),
                             const SizedBox(width: 10),
-                            // ℹ️ Info (si description disponible)
+                            // ℹ Info (si description disponible) — outlined primary
                             if (m.note.isNotEmpty)
-                              GestureDetector(
-                                onTap: () => _showNoteDialog(context, m.name, m.note),
-                                child: Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.10),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.info_outline_rounded,
-                                      size: 16, color: Color(0xFF3B82F6)),
-                                ),
+                              _ActionCircle(
+                                icon:    Icons.info_outline_rounded,
+                                primary: primary,
+                                isChecked: isChecked,
+                                onTap:   () => _showNoteDialog(context, m.name, m.note),
                               ),
-                            const SizedBox(width: 8),
-                            // 🛒 Amazon
-                            GestureDetector(
+                            if (m.note.isNotEmpty) const SizedBox(width: 8),
+                            // ↗ Trouver en ligne — outlined primary harmonisé
+                            _ActionCircle(
+                              icon:    Icons.shopping_cart,
+                              primary: primary,
+                              isChecked: isChecked,
                               onTap: () => launchUrl(
                                 buildAmazonSearchUri(widget.passionName, m.name),
                                 mode: LaunchMode.inAppBrowserView,
-                              ),
-                              child: Container(
-                                width: 32, height: 32,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFF9900).withValues(alpha: 0.12),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: const Color(0xFFFF9900).withValues(alpha: 0.4)),
-                                ),
-                                child: const Icon(Icons.shopping_cart_outlined,
-                                    size: 15, color: Color(0xFFCC7A00)),
                               ),
                             ),
                           ],
@@ -327,6 +312,50 @@ class _MaterialsSheetState extends State<MaterialsSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Petit cercle d'action cohérent avec le thème (option 2 : icônes outlinées
+/// primary, pas de couleurs hors charte). Utilisé pour "Info" et "Trouver en
+/// ligne" sur chaque card de matériel. S'adapte à l'état coché pour éviter
+/// la sur-charge visuelle quand la card est déjà active.
+class _ActionCircle extends StatelessWidget {
+  final IconData     icon;
+  final Color        primary;
+  final bool         isChecked;
+  final VoidCallback onTap;
+
+  const _ActionCircle({
+    required this.icon,
+    required this.primary,
+    required this.isChecked,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Quand la card est cochée (fond primaryLight), on inverse pour garder
+    // un contraste suffisant : fond blanc + bord primary plus marqué.
+    final bgColor = isChecked
+        ? Colors.white.withValues(alpha: 0.85)
+        : primary.withValues(alpha: 0.06);
+    final borderColor = isChecked
+        ? primary.withValues(alpha: 0.45)
+        : primary.withValues(alpha: 0.25);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: bgColor,
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor, width: 1.2),
+        ),
+        child: Icon(icon, size: 16, color: primary),
       ),
     );
   }

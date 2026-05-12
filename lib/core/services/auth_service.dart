@@ -3,6 +3,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import 'package:discover/core/services/streak_service.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH SERVICE
 // Connexion Google + Email/Mot de passe via Firebase Auth.
@@ -84,6 +86,7 @@ class AuthService {
   // ── Déconnexion simple ───────────────────────────────────────────────────────
 
   static Future<void> signOut() async {
+    StreakService.clearCache(); // ne pas garder le streak du user précédent
     await Future.wait([
       GoogleSignIn.instance.signOut(),
       _auth.signOut(),
@@ -93,6 +96,7 @@ class AuthService {
   // ── Déconnexion complète — vide tout le stockage local ───────────────────────
 
   static Future<void> fullSignOut() async {
+    StreakService.clearCache();
     // 1. Déconnecte Firebase + Google
     await Future.wait([
       GoogleSignIn.instance.signOut(),

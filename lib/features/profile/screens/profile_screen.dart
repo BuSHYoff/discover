@@ -25,7 +25,7 @@ class ProfileData extends ChangeNotifier {
   ProfileData._();
 
   String name = 'Toi';
-  String profileColorHex = '#2D5A3D';
+  String profileColorHex = '#CC6666';
   final List<String> _uploadedPhotos = [];
   final Set<String> _viewedPassionIds = {};
 
@@ -59,7 +59,7 @@ class ProfileData extends ChangeNotifier {
 
   void reset() {
     name = 'Toi';
-    profileColorHex = '#2D5A3D';
+    profileColorHex = '#CC6666';
     _uploadedPhotos.clear();
     _viewedPassionIds.clear();
     notifyListeners();
@@ -87,19 +87,20 @@ extension PassionFilterLabel on PassionFilter {
 
 // ─── COULEURS DE PROFIL ───────────────────────────────────────────────────────
 
+/// Ordre : roue chromatique chaud → froid, défaut en premier.
 const List<String> kProfileColors = [
-  '#2D5A3D', // Vert forêt (défaut)
-  '#4A8FCC', // Bleu azur
-  '#8B6DB5', // Violet doux
+  '#CC6666', // Rouge doux (défaut)
   '#E07B54', // Corail
-  '#D4789C', // Rose
-  '#3DBDB5', // Turquoise
-  '#CC6666', // Rouge doux
-  '#6B7DC8', // Indigo
-  '#C4A258', // Or
-  '#48A870', // Vert menthe
   '#E8A838', // Ambre
+  '#C4A258', // Or
   '#A0826D', // Terracotta
+  '#D4789C', // Rose
+  '#8B6DB5', // Violet doux
+  '#6B7DC8', // Indigo
+  '#4A8FCC', // Bleu azur
+  '#3DBDB5', // Turquoise
+  '#48A870', // Vert menthe
+  '#2D5A3D', // Vert forêt
 ];
 
 Color _hexToColor(String hex) {
