@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:discover/core/models/passion.dart';
-import 'package:discover/features/home/screens/detail_screen.dart';
 import 'package:discover/core/utils/url_utils.dart';
 import 'package:discover/core/theme/app_theme.dart';
 

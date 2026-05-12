@@ -1,16 +1,17 @@
-import 'package:discover/core/theme/app_theme.dart';
-import 'package:discover/features/onboarding/onboarding.dart';
-import 'package:discover/features/profile/screens/profile_screen.dart';
-import 'package:discover/main_shell.dart';
-import 'package:discover/core/models/passion.dart';
-import 'package:discover/core/services/user_service.dart';
-import 'package:discover/core/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:discover/core/services/firebase_options.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import 'package:discover/core/services/firebase_options.dart';
+import 'package:discover/core/services/notification_service.dart';
+import 'package:discover/core/services/passions_service.dart';
+import 'package:discover/core/services/user_service.dart';
+import 'package:discover/core/theme/app_theme.dart';
+import 'package:discover/features/onboarding/onboarding.dart';
+import 'package:discover/features/profile/screens/profile_screen.dart';
+import 'package:discover/main_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,39 +28,37 @@ void main() async {
     ),
   );
 
+  // Firebase Auth + Messaging restent : nécessaires pour générer l'ID Token
+  // Bearer envoyé à l'API NestJS et pour recevoir les notifications push.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await NotificationService.initialize();
 
-  // Initialise Google Sign In (requis par google_sign_in ^7.x)
+  // Google Sign In (requis pour les comptes Google)
   await GoogleSignIn.instance.initialize(
     serverClientId: '240632493418-afu40a0d2t2rr0oblvncgo8vtvrt5pug.apps.googleusercontent.com',
   );
 
-  // Charge le catalogue de passions depuis Firestore
-  await PassionRepository.instance.load();
+  // Charge le catalogue de passions via l'API (un seul GET /passions)
+  await PassionsService.loadCatalog();
 
-  // Vérifie si l'onboarding a déjà été complété
+  // Vérifie si l'onboarding a déjà été complété (état local SharedPreferences)
   final onboardingDone = await OnboardingData.isDone();
-  final isGuest = await OnboardingData.isGuest();
+  final isGuest        = await OnboardingData.isGuest();
 
-  // Charge les données si elles existent
   if (onboardingDone) {
     await OnboardingData.instance.load();
-    // Restaure le prénom dans ProfileData dès le démarrage
     final name = OnboardingData.instance.firstName;
     if (name.isNotEmpty) ProfileData.instance.setName(name);
   }
 
-  // Restaure les données depuis Firestore si l'user est connecté et non invité
+  // User connecté : restaure profil + progressions depuis le backend.
   if (!isGuest && FirebaseAuth.instance.currentUser != null) {
-    // Lance les deux chargements en parallèle
     final results = await Future.wait([
       UserService.loadAndRestorePassions(),
       UserService.loadUserProfile(),
     ]);
 
-    // Applique username + couleur depuis Firestore (priorité sur données locales)
     final profile = results[1] as ({String? username, String? profileColor});
     if (profile.username?.isNotEmpty == true) {
       ProfileData.instance.setName(profile.username!);
@@ -69,7 +68,7 @@ void main() async {
     }
   }
 
-  // Installe l'écouteur de rotation de token — sans popup permission
+  // Écouteur de rotation FCM token — sans popup permission.
   NotificationService.setupTokenRefreshListener();
 
   runApp(DiscoverApp(showOnboarding: !onboardingDone, isGuest: isGuest));
@@ -89,7 +88,6 @@ class _DiscoverAppState extends State<DiscoverApp> {
   @override
   void initState() {
     super.initState();
-    // Rebuild MaterialApp quand la couleur de profil change
     ProfileData.instance.addListener(_onThemeChange);
   }
 

@@ -1,10 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// ─────────────────────────────────────────────────────────────────────────────
+// Modèles UI pour les posts + commentaires.
+// Enrichissent les modèles bruts du backend (Post, PostComment) avec les
+// infos d'affichage résolues depuis l'API users (authorName, color, etc.).
+// ─────────────────────────────────────────────────────────────────────────────
 
 class CommunityPost {
   final String id;
   final String passionId;
   final String authorId;
-  // Résolus depuis users/{authorId} — pas stockés dans le post
+  // Résolus depuis users/{authorId} via CommunityService
   final String authorName;
   final String authorInitials;
   final String authorColor;
@@ -40,39 +44,6 @@ class CommunityPost {
     this.isReported = false,
   });
 
-  /// Construit un CommunityPost à partir d'un doc Firestore + infos auteur
-  /// résolues séparément (depuis la collection users).
-  factory CommunityPost.fromDoc({
-    required DocumentSnapshot<Map<String, dynamic>> snap,
-    required String currentUid,
-    required String authorName,
-    required String authorInitials,
-    required String authorColor,
-  }) {
-    final d          = snap.data()!;
-    final likedBy    = List<String>.from(d['likedBy'] ?? []);
-    final reportedBy = List<String>.from(d['reportedBy'] ?? []);
-    return CommunityPost(
-      id:             snap.id,
-      passionId:      d['passionId']     ?? '',
-      authorId:       d['authorId']      ?? '',
-      authorName:     authorName,
-      authorInitials: authorInitials,
-      authorColor:    authorColor,
-      imageUrl:       d['imageUrl']      ?? '',
-      title:          d['title']         ?? '',
-      caption:        d['caption']       ?? '',
-      likeCount:      (d['likeCount']    ?? 0) as int,
-      commentCount:   (d['commentCount'] ?? 0) as int,
-      likedBy:        likedBy,
-      createdAt:      (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isLiked:        likedBy.contains(currentUid),
-      reportCount:    (d['reportCount']  ?? 0) as int,
-      reportedBy:     reportedBy,
-      isReported:     reportedBy.contains(currentUid),
-    );
-  }
-
   String get timeAgo {
     final diff = DateTime.now().difference(createdAt);
     if (diff.inMinutes < 1)  return 'à l\'instant';
@@ -86,7 +57,6 @@ class CommunityPost {
 class CommunityComment {
   final String id;
   final String authorId;
-  // Résolus depuis users/{authorId}
   final String authorName;
   final String authorInitials;
   final String authorColor;
@@ -102,24 +72,6 @@ class CommunityComment {
     required this.text,
     required this.createdAt,
   });
-
-  factory CommunityComment.fromDoc({
-    required DocumentSnapshot<Map<String, dynamic>> snap,
-    required String authorName,
-    required String authorInitials,
-    required String authorColor,
-  }) {
-    final d = snap.data()!;
-    return CommunityComment(
-      id:             snap.id,
-      authorId:       d['authorId'] ?? '',
-      authorName:     authorName,
-      authorInitials: authorInitials,
-      authorColor:    authorColor,
-      text:           d['text']     ?? '',
-      createdAt:      (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
 
   String get timeAgo {
     final diff = DateTime.now().difference(createdAt);

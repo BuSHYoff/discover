@@ -2,28 +2,36 @@ import 'package:discover/core/models/reddit_post.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FEED ITEM — modèle unifié pour les posts app + Reddit
+// CommunityFeedItem — union discriminée renvoyée par `GET /passions/:id/community`.
+// Le backend merge déjà les posts app + Reddit et les trie par date desc.
 //
-// Le tri et le merge sont maintenant gérés côté backend (`/passions/:id/community`).
-// Ces classes sont juste les types de rendu locaux pour la UI.
+// Sealed class Dart → match exhaustif côté UI via `switch`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-sealed class FeedItem {
+sealed class CommunityFeedItem {
+  const CommunityFeedItem();
   DateTime get createdAt;
 }
 
-class AppFeedItem extends FeedItem {
+class AppCommunityFeedItem extends CommunityFeedItem {
   final CommunityPost post;
-  AppFeedItem(this.post);
+  const AppCommunityFeedItem(this.post);
 
   @override
   DateTime get createdAt => post.createdAt;
 }
 
-class RedditFeedItem extends FeedItem {
+class RedditCommunityFeedItem extends CommunityFeedItem {
   final RedditPost post;
-  RedditFeedItem(this.post);
+  const RedditCommunityFeedItem(this.post);
 
   @override
   DateTime get createdAt => post.createdAt;
+}
+
+class CommunityFeed {
+  final List<CommunityFeedItem> items;
+  final String? nextCursor;
+
+  const CommunityFeed({required this.items, this.nextCursor});
 }

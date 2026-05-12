@@ -8,14 +8,12 @@ import 'package:discover/core/theme/app_theme.dart';
 
 class MaterialsStep extends StatelessWidget {
   final List<AIMaterial> materials;
-  final String totalBudget;
   final List<bool> checked;
   final ValueChanged<int> onToggle;
 
   const MaterialsStep({
     super.key,
     required this.materials,
-    required this.totalBudget,
     required this.checked,
     required this.onToggle,
   });
@@ -30,27 +28,7 @@ class MaterialsStep extends StatelessWidget {
       icon: Icons.shopping_bag_outlined,
       title: 'Matériel requis',
       subtitle: 'Coche chaque élément au fur et à mesure que tu t\'équipes.',
-      badge: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          CounterBadge(done: doneCount, total: materials.length, label: 'articles'),
-          if (totalBudget.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                  color: primaryLight, borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: primary.withValues(alpha: 0.2))),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.savings_outlined, size: 13, color: primary),
-                const SizedBox(width: 5),
-                Text(totalBudget, style: GoogleFonts.firaSansCondensed(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: primary)),
-              ]),
-            ),
-          ],
-        ]),
-      ),
+      badge: CounterBadge(done: doneCount, total: materials.length, label: 'articles'),
       body: Column(children: [
         ...materials.asMap().entries.map((entry) {
           final i = entry.key; final m = entry.value;
@@ -85,15 +63,11 @@ class MaterialsStep extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(m.name, style: GoogleFonts.firaSansCondensed(
-                        fontSize: 13.5, fontWeight: FontWeight.w600,
-                        color: checked[i] ? primary : AppColors.ink,
-                        decoration: checked[i] ? TextDecoration.lineThrough : null,
-                        decorationColor: primary.withValues(alpha: 0.5)))),
-                    Text(m.price, style: GoogleFonts.firaSansCondensed(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: primary)),
-                  ]),
+                  Text(m.name, style: GoogleFonts.firaSansCondensed(
+                      fontSize: 13.5, fontWeight: FontWeight.w600,
+                      color: checked[i] ? primary : AppColors.ink,
+                      decoration: checked[i] ? TextDecoration.lineThrough : null,
+                      decorationColor: primary.withValues(alpha: 0.5))),
                   if (m.note.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Text(m.note, style: GoogleFonts.firaSansCondensed(

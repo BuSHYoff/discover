@@ -22,15 +22,8 @@ import 'package:discover/core/services/notification_service.dart';
 import 'package:discover/features/nearby/screens/nearby_screen.dart';
 import 'package:discover/features/home/widgets/shorts_row.dart';
 
-// ─── PROVIDER DU CONTENU IA ───────────────────────────────────────────────────
-
-class AIContentProvider {
-  static Future<AIContent?> getFor(String passionId) async {
-    return PassionRepository.instance.aiCache[passionId];
-  }
-}
-
 // ─── DETAIL SCREEN ────────────────────────────────────────────────────────────
+// Note : AIContentProvider est exporté par passions_service.dart (lib/core).
 
 class DetailScreen extends StatefulWidget {
   final Passion passion;

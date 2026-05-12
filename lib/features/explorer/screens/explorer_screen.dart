@@ -340,7 +340,7 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
       child: Column(
         children: List.generate(items.length, (i) {
           final item    = items[i];
-          final passion = item.passion!;
+          final passion = item.passion;
           return StaggeredBounceEntry(
             index:        i,
             direction:    BounceDirection.fromBottom,

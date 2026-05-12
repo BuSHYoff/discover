@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:discover/core/services/proposals_service.dart';
 import 'package:discover/core/theme/app_theme.dart';
 import 'package:discover/features/onboarding/screens/onboarding_screen.dart';
 
@@ -26,7 +26,6 @@ class _ProposePassionScreenState extends State<ProposePassionScreen> {
     'Arts créatifs',
     'Sport & Plein air',
     'Musique',
-    'Cuisine & Gastronomie',
     'Technologie',
     'Culture & Histoire',
     'Autre',
@@ -67,20 +66,17 @@ class _ProposePassionScreenState extends State<ProposePassionScreen> {
     final category = _isAutreSelected
         ? 'Autre — ${_autreController.text.trim()}'
         : _selectedCategory!;
-    final country = _countryController.text.trim();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final country   = _countryController.text.trim();
+    final resources = _resourcesController.text.trim();
 
     try {
-      final resources = _resourcesController.text.trim();
-      await FirebaseFirestore.instance.collection('passion_proposals').add({
-        'name':        _nameController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'category':    category,
-        'country':     country.isNotEmpty ? country : null,
-        'resources':   resources.isNotEmpty ? resources : null,
-        'submittedBy': uid,
-        'createdAt':   FieldValue.serverTimestamp(),
-      });
+      await ProposalsService.submit(
+        name:        _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        category:    category,
+        country:     country.isNotEmpty ? country : null,
+        resources:   resources.isNotEmpty ? resources : null,
+      );
 
       if (!mounted) return;
       _showSnackbar('Proposition envoyée ! Merci', isError: false);

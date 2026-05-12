@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -127,22 +126,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _selectedTab = 0;
 
   List<CommunityPost> _myPosts = [];
-  late final StreamSubscription<List<CommunityPost>> _postsSub;
 
   @override
   void initState() {
     super.initState();
     _profile.addListener(_onProfileChanged);
-    _postsSub = CommunityService.streamMyPosts().listen((posts) {
-      if (mounted) setState(() => _myPosts = posts);
-    });
+    _loadMyPosts();
   }
 
   @override
   void dispose() {
     _profile.removeListener(_onProfileChanged);
-    _postsSub.cancel();
     super.dispose();
+  }
+
+  /// Charge mes publications. Appelé à l'ouverture + sur pull-to-refresh.
+  Future<void> _loadMyPosts() async {
+    try {
+      final posts = await CommunityService.fetchMyPosts();
+      if (mounted) setState(() => _myPosts = posts);
+    } catch (_) {
+      if (mounted) setState(() => _myPosts = []);
+    }
   }
 
   void _onProfileChanged() => setState(() {});
@@ -454,10 +459,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Hauteur totale de la bottom bar (72 contenu + 16 marge + safe area)
     final barHeight     = bottomPadding + 88.0;
 
+    final primary = Theme.of(context).colorScheme.primary;
     return Scaffold(
       backgroundColor: AppColors.cream,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: RefreshIndicator(
+        color: primary,
+        onRefresh: _loadMyPosts,
+        child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
 
           // ── HEADER ────────────────────────────────────────────────────
@@ -888,6 +897,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SliverToBoxAdapter(child: SizedBox(height: barHeight)),
         ],
       ),
+      ),
     );
   }
 }
@@ -946,77 +956,6 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// ─── SECTION PUBLICATIONS ─────────────────────────────────────────────────────
-
-class _PublicationsSection extends StatelessWidget {
-  final ProfileData profile;
-  const _PublicationsSection({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final primary      = Theme.of(context).colorScheme.primary;
-    final primaryLight = Color.lerp(primary, Colors.white, 0.82)!;
-
-    return StreamBuilder<List<CommunityPost>>(
-      stream: CommunityService.streamMyPosts(),
-      builder: (context, snapshot) {
-        final posts = snapshot.data ?? [];
-
-        return StaggeredBounceEntry(
-          index: 4,
-          direction: BounceDirection.fromBottom,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── En-tête section ────────────────────────────────────
-                Row(children: [
-                  Text('Mes publications',
-                      style: GoogleFonts.firaSansCondensed(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink)),
-                  const SizedBox(width: 8),
-                  if (posts.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: primaryLight,
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Text('${posts.length}',
-                          style: GoogleFonts.firaSansCondensed(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: primary)),
-                    ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Contenu ────────────────────────────────────────────
-                if (posts.isEmpty)
-                  _PostsEmpty(primary: primary, primaryLight: primaryLight)
-                else
-                  SizedBox(
-                    height: 96,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: posts.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) =>
-                          _PostThumb(post: posts[i]),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 class _PostThumb extends StatelessWidget {
   final CommunityPost post;

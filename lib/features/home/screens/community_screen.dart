@@ -4,11 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:discover/core/models/community_feed_item.dart';
 import 'package:discover/core/models/passion.dart';
 import 'package:discover/core/services/community_service.dart';
-import 'package:discover/core/services/reddit_service.dart';
 import 'package:discover/features/home/widgets/community_models.dart';
-import 'package:discover/features/home/widgets/feed_item.dart';
 import 'package:discover/features/home/widgets/post_card.dart';
 import 'package:discover/features/home/widgets/reddit_post_card.dart';
 import 'package:discover/features/home/widgets/comments_sheet.dart';
@@ -30,6 +29,12 @@ class _CommunityScreenState extends State<CommunityScreen>
   final ScrollController _scrollCtrl = ScrollController();
   late TabController _tabCtrl;
 
+  // Signal de rafraîchissement vers _PublicationsTab. On l'incrémente après
+  // chaque mutation (publish, delete, edit) pour forcer un re-fetch.
+  final ValueNotifier<int> _refreshTrigger = ValueNotifier(0);
+
+  void _triggerRefresh() => _refreshTrigger.value++;
+
   String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
   bool get _isLoggedIn => FirebaseAuth.instance.currentUser != null;
 
@@ -44,16 +49,19 @@ class _CommunityScreenState extends State<CommunityScreen>
   void dispose() {
     _tabCtrl.dispose();
     _scrollCtrl.dispose();
+    _refreshTrigger.dispose();
     super.dispose();
   }
 
   // ── Publish ───────────────────────────────────────────────────────────────
 
-  void _openPublish() {
+  void _openPublish() async {
     HapticFeedback.lightImpact();
-    Navigator.of(context).push(MaterialPageRoute(
+    await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CreatePostScreen(passion: widget.passion),
     ));
+    // Au retour du CreatePostScreen, recharge le feed (le post a peut-être été créé).
+    _triggerRefresh();
   }
 
   // ── Like ──────────────────────────────────────────────────────────────────
@@ -92,13 +100,14 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   // ── Edit ──────────────────────────────────────────────────────────────────
 
-  void _editPost(CommunityPost post) {
-    showModalBottomSheet(
+  void _editPost(CommunityPost post) async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => EditPostSheet(post: post),
     );
+    _triggerRefresh();
   }
 
   // ── Report ────────────────────────────────────────────────────────────────
@@ -126,7 +135,7 @@ class _CommunityScreenState extends State<CommunityScreen>
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              CommunityService.reportPost(post.id);
+              CommunityService.reportPost(post.id, passionId: post.passionId);
               setState(() => post.isReported = true);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -179,7 +188,8 @@ class _CommunityScreenState extends State<CommunityScreen>
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              CommunityService.deletePost(post.id);
+              CommunityService.deletePost(post.id, passionId: post.passionId)
+                  .then((_) => _triggerRefresh());
               HapticFeedback.lightImpact();
             },
             child: Text('Supprimer',
@@ -292,20 +302,24 @@ class _CommunityScreenState extends State<CommunityScreen>
           children: [
             // ── Onglet Publications ─────────────────────────────────────────
             _PublicationsTab(
-              passion:     widget.passion,
-              myUid:       _myUid,
-              isLoggedIn:  _isLoggedIn,
-              onPublish:   _openPublish,
-              onLike:      _toggleLike,
-              onComment:   _openComments,
-              onShare:     _sharePost,
-              onEdit:      _editPost,
-              onDelete:    _deletePost,
-              onReport:    _reportPost,
+              passion:        widget.passion,
+              myUid:          _myUid,
+              isLoggedIn:     _isLoggedIn,
+              onPublish:      _openPublish,
+              onLike:         _toggleLike,
+              onComment:      _openComments,
+              onShare:        _sharePost,
+              onEdit:         _editPost,
+              onDelete:       _deletePost,
+              onReport:       _reportPost,
+              refreshTrigger: _refreshTrigger,
             ),
 
             // ── Onglet Actualités ───────────────────────────────────────────
-            NewsTab(passionName: widget.passion.name),
+            NewsTab(
+              passionId:   widget.passion.id,
+              passionName: widget.passion.name,
+            ),
           ],
         ),
       ),
@@ -315,6 +329,9 @@ class _CommunityScreenState extends State<CommunityScreen>
 
 // ── Publications Tab ──────────────────────────────────────────────────────────
 
+/// Trigger partagé pour forcer le refresh d'un onglet sans WebSocket.
+/// Le parent incrémente la valeur après une mutation (publish, delete),
+/// les enfants qui en dépendent re-fetchent.
 class _PublicationsTab extends StatefulWidget {
   final Passion            passion;
   final String?            myUid;
@@ -326,6 +343,7 @@ class _PublicationsTab extends StatefulWidget {
   final void Function(CommunityPost) onEdit;
   final void Function(CommunityPost) onDelete;
   final void Function(CommunityPost) onReport;
+  final ValueListenable<int> refreshTrigger;
 
   const _PublicationsTab({
     required this.passion,
@@ -338,6 +356,7 @@ class _PublicationsTab extends StatefulWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onReport,
+    required this.refreshTrigger,
   });
 
   @override
@@ -346,8 +365,10 @@ class _PublicationsTab extends StatefulWidget {
 
 class _PublicationsTabState extends State<_PublicationsTab>
     with AutomaticKeepAliveClientMixin {
-  List<RedditPost> _redditPosts  = [];
-  bool             _redditLoading = false;
+
+  // Feed mergé app + Reddit — déjà trié par date desc côté backend.
+  // Feed mergé app + Reddit, déjà trié par date desc côté backend.
+  late Future<CommunityFeed> _feedFuture;
 
   @override
   bool get wantKeepAlive => true;
@@ -355,25 +376,23 @@ class _PublicationsTabState extends State<_PublicationsTab>
   @override
   void initState() {
     super.initState();
-    _loadReddit();
+    _feedFuture = CommunityService.fetchCommunityFeed(widget.passion.id);
+    widget.refreshTrigger.addListener(_onRefreshTrigger);
   }
 
-  Future<void> _loadReddit() async {
-    final sub = widget.passion.subreddit;
-    if (sub == null || sub.isEmpty) return;
-    setState(() => _redditLoading = true);
-    final posts = await RedditService.fetchTopPosts(sub);
-    if (!mounted) return;
-    setState(() { _redditPosts = posts; _redditLoading = false; });
+  void _onRefreshTrigger() => _refresh();
+
+  @override
+  void dispose() {
+    widget.refreshTrigger.removeListener(_onRefreshTrigger);
+    super.dispose();
   }
 
-  List<FeedItem> _merge(List<CommunityPost> appPosts) {
-    final items = <FeedItem>[
-      ...appPosts.map(AppFeedItem.new),
-      ..._redditPosts.map(RedditFeedItem.new),
-    ];
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return items;
+  /// Recharge le feed. Utilisé par pull-to-refresh + après mutations parent.
+  Future<void> _refresh() async {
+    final future = CommunityService.fetchCommunityFeed(widget.passion.id);
+    setState(() { _feedFuture = future; });
+    await future;
   }
 
   @override
@@ -381,55 +400,72 @@ class _PublicationsTabState extends State<_PublicationsTab>
     super.build(context);
     final primary = Theme.of(context).colorScheme.primary;
 
-    return StreamBuilder<List<CommunityPost>>(
-      stream: CommunityService.streamPosts(widget.passion.id),
-      builder: (context, snap) {
-        if (snap.hasError) {
-          debugPrint('[PublicationsTab] stream error: ${snap.error}');
-          return const _ErrorState();
-        }
-        if (snap.connectionState == ConnectionState.waiting || _redditLoading) {
-          return Center(
-            child: CircularProgressIndicator(color: primary, strokeWidth: 2),
-          );
-        }
+    return FutureBuilder<CommunityFeed>(
+            future: _feedFuture,
+            builder: (context, snap) {
+              if (snap.hasError) {
+                debugPrint('[PublicationsTab] fetch error: ${snap.error}');
+                return RefreshIndicator(
+                  color: primary,
+                  onRefresh: _refresh,
+                  child: ListView(children: const [SizedBox(height: 80), _ErrorState()]),
+                );
+              }
+              if (snap.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: CircularProgressIndicator(color: primary, strokeWidth: 2),
+                );
+              }
 
-        final appPosts = snap.data ?? [];
-        final feed     = _merge(appPosts);
+              final feed = snap.data?.items ?? const <CommunityFeedItem>[];
 
-        if (feed.isEmpty) {
-          return _EmptyFeed(
-            passionName: widget.passion.name,
-            onPublish:   widget.isLoggedIn ? widget.onPublish : null,
-          );
-        }
+              if (feed.isEmpty) {
+                return RefreshIndicator(
+                  color: primary,
+                  onRefresh: _refresh,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 80),
+                      _EmptyFeed(
+                        passionName: widget.passion.name,
+                        onPublish:   widget.isLoggedIn ? widget.onPublish : null,
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 8, bottom: 32),
-          itemCount: feed.length,
-          itemBuilder: (_, i) {
-            final item = feed[i];
-            return switch (item) {
-              AppFeedItem(:final post) => PostCard(
-                  post:      post,
-                  isOwner:   post.authorId == widget.myUid,
-                  onLike:    () => widget.onLike(post),
-                  onComment: () => widget.onComment(post),
-                  onShare:   () => widget.onShare(post),
-                  onEdit:    () => widget.onEdit(post),
-                  onDelete:  () => widget.onDelete(post),
-                  onReport:  () => widget.onReport(post),
+              return RefreshIndicator(
+                color: primary,
+                onRefresh: _refresh,
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 32),
+                  itemCount: feed.length,
+                  itemBuilder: (_, i) {
+                    final item = feed[i];
+                    return switch (item) {
+                      AppCommunityFeedItem(:final post) => PostCard(
+                          post:      post,
+                          isOwner:   post.authorId == widget.myUid,
+                          onLike:    () => widget.onLike(post),
+                          onComment: () => widget.onComment(post),
+                          onShare:   () => widget.onShare(post),
+                          onEdit:    () => widget.onEdit(post),
+                          onDelete:  () => widget.onDelete(post),
+                          onReport:  () => widget.onReport(post),
+                        ),
+                      RedditCommunityFeedItem(:final post) => Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          child: RedditPostCard(post: post),
+                        ),
+                    };
+                  },
                 ),
-              RedditFeedItem(:final post) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
-                  child: RedditPostCard(post: post),
-                ),
-            };
-          },
-        );
-      },
-    );
+              );
+            },
+          );
   }
 }
 
