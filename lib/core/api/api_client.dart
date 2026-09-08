@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -23,6 +24,18 @@ class ApiClient {
   );
 
   static final _http = http.Client();
+
+  // ── Politique de retry ─────────────────────────────────────────────────────
+
+  /// Nombre total de tentatives (1 appel initial + 3 retries).
+  static const int _maxAttempts = 4;
+
+  /// Attente avant le 1er retry, doublée à chaque tentative suivante.
+  static const Duration _initialBackoff = Duration(milliseconds: 500);
+
+  /// Plafond par tentative — évite qu'une connexion suspendue bloque le
+  /// démarrage de l'app indéfiniment.
+  static const Duration _requestTimeout = Duration(seconds: 20);
 
   // ── Helpers d'auth ─────────────────────────────────────────────────────────
 
@@ -121,7 +134,50 @@ class ApiClient {
     );
   }
 
+  /// Rejoue [_sendOnce] tant que l'erreur est transitoire, avec un backoff
+  /// exponentiel (0,5 s → 1 s → 2 s → 4 s, soit ~7,5 s d'attente cumulée).
+  ///
+  /// Motivé par Cloud Run en scale-to-zero : après une période d'inactivité,
+  /// la première requête peut être rejetée (429 « no available instance ») ou
+  /// mise en attente le temps qu'une instance démarre. Sans retry, ce réveil
+  /// remontait jusqu'à l'UI sous forme d'erreur.
   static Future<T> _send<T>(
+    String method,
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    bool auth = true,
+  }) async {
+    var delay = _initialBackoff;
+
+    for (var attempt = 1; ; attempt++) {
+      try {
+        return await _sendOnce<T>(method, path,
+            body: body, query: query, auth: auth);
+      } catch (e) {
+        if (attempt >= _maxAttempts || !_isTransient(e)) rethrow;
+        await Future.delayed(delay);
+        delay *= 2;
+      }
+    }
+  }
+
+  /// Vrai si l'erreur vaut la peine d'être retentée : indisponibilité
+  /// temporaire côté serveur, ou coupure réseau passagère côté client.
+  static bool _isTransient(Object e) {
+    if (e is ApiException) {
+      // 429 : instance indisponible · 502/503/504 : backend en cours de réveil.
+      return e.status == 429 ||
+             e.status == 502 ||
+             e.status == 503 ||
+             e.status == 504;
+    }
+    return e is SocketException ||
+           e is TimeoutException ||
+           e is http.ClientException;
+  }
+
+  static Future<T> _sendOnce<T>(
     String method,
     String path, {
     Object? body,
@@ -143,16 +199,18 @@ class ApiClient {
       if (token != null) headers['Authorization'] = 'Bearer $token';
     }
 
-    final http.Response res;
+    final Future<http.Response> pending;
     switch (method) {
-      case 'GET':    res = await _http.get   (uri, headers: headers);                    break;
-      case 'DELETE': res = await _http.delete(uri, headers: headers, body: encoded);     break;
-      case 'POST':   res = await _http.post  (uri, headers: headers, body: encoded);     break;
-      case 'PUT':    res = await _http.put   (uri, headers: headers, body: encoded);     break;
-      case 'PATCH':  res = await _http.patch (uri, headers: headers, body: encoded);     break;
+      case 'GET':    pending = _http.get   (uri, headers: headers);                    break;
+      case 'DELETE': pending = _http.delete(uri, headers: headers, body: encoded);     break;
+      case 'POST':   pending = _http.post  (uri, headers: headers, body: encoded);     break;
+      case 'PUT':    pending = _http.put   (uri, headers: headers, body: encoded);     break;
+      case 'PATCH':  pending = _http.patch (uri, headers: headers, body: encoded);     break;
       default:
         throw ArgumentError('Méthode HTTP non supportée : $method');
     }
+
+    final res = await pending.timeout(_requestTimeout);
 
     return _parseJsonResponse<T>(res.statusCode, res.body);
   }
